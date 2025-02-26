@@ -38,30 +38,51 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.activate = activate;
 exports.deactivate = deactivate;
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
 const vscode = __importStar(require("vscode"));
 const ollama_1 = __importDefault(require("ollama"));
-// This method is called when your extension is activated
-// Your extension is activated the very first time the command is executed
+// This is the main entry point for your extension
 function activate(context) {
-    const disposable = vscode.commands.registerCommand('deepseek-ext.chat', () => {
-        const panel = vscode.window.createWebviewPanel("DeepSeekChat", "Deep Seek Chat", vscode.ViewColumn.One, { enableScripts: true });
-        panel.webview.html = getWebviewContent();
-        panel.webview.onDidReceiveMessage(async (message) => {
+    // Create and register your WebviewViewProvider
+    const provider = new DeepSeekViewProvider(context.extensionUri);
+    context.subscriptions.push(vscode.window.registerWebviewViewProvider("deepseek-ext.view", // Matches the "id" from package.json
+    provider));
+    console.log("extension activated");
+}
+// A class that provides the webview for the sidebar
+class DeepSeekViewProvider {
+    _extensionUri;
+    constructor(_extensionUri) {
+        this._extensionUri = _extensionUri;
+        console.log("provider called");
+    }
+    // Called by VS Code when your view should be displayed
+    resolveWebviewView(webviewView, _context, _token) {
+        // Allow scripts in the webview
+        webviewView.webview.options = {
+            enableScripts: true,
+        };
+        // Set the initial HTML
+        webviewView.webview.html = getWebviewContent();
+        console.log("HTML initialized");
+        // Listen for messages from the webview
+        webviewView.webview.onDidReceiveMessage(async (message) => {
             if (message.command === "userPrompt") {
                 const userPrompt = message.text;
-                let responseText = '';
+                let responseText = "";
                 console.log("Received user prompt: " + userPrompt);
                 try {
                     const streamResponse = await ollama_1.default.chat({
-                        model: 'deepseek-r1:32b',
+                        model: "deepseek-r1:32b",
                         messages: [{ role: "user", content: userPrompt }],
                         stream: true,
                     });
+                    // Stream each chunk to the webview
                     for await (const part of streamResponse) {
                         responseText += part.message.content;
-                        panel.webview.postMessage({ command: "chatResponse", text: responseText });
+                        webviewView.webview.postMessage({
+                            command: "chatResponse",
+                            text: responseText,
+                        });
                     }
                 }
                 catch (error) {
@@ -69,58 +90,58 @@ function activate(context) {
                 }
             }
         });
-    });
-    context.subscriptions.push(disposable);
+        console.log("view provider initialized");
+    }
 }
 function getWebviewContent() {
     return /*html*/ `
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Deep Seek Chat</title>
-            <style>
-                body {
-                    font-family: sans-serif;
-                    margin: 1rem;
-                }
-                #userPrompt {
-                    width: 100%;
-                    box-sizing: border-box;
-                }
-                #response {
-                    border: 1px solid #ccc;
-                    margin-top: 1rem;
-                    padding: 0.5rem;
-                    min-height: 400px;
-                }
-            </style>
-        </head>
-        <body>
-            <h2>Deep Seek VS Code Extension!</h2>
-            <textarea id="userPrompt" rows="3" placeholder="Ask anything..."></textarea><br />
-            <button id="askButton">Ask</button>
-            <div id="response"></div>
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Deep Seek Chat</title>
+      <style>
+        body {
+          font-family: sans-serif;
+          margin: 1rem;
+        }
+        #userPrompt {
+          width: 100%;
+          box-sizing: border-box;
+        }
+        #response {
+          border: 1px solid #ccc;
+          margin-top: 1rem;
+          padding: 0.5rem;
+          min-height: 400px;
+        }
+      </style>
+    </head>
+    <body>
+      <h2>Deep Seek VS Code Extension!</h2>
+      <textarea id="userPrompt" rows="3" placeholder="Ask anything..."></textarea><br />
+      <button id="askButton">Ask</button>
+      <div id="response"></div>
 
-            <script>
-                const vscode = acquireVsCodeApi();
+      <script>
+        const vscode = acquireVsCodeApi();
 
-                document.getElementById("askButton").addEventListener("click", () => {
-                    const userPrompt = document.getElementById("userPrompt").value;
-                    vscode.postMessage({ command: 'userPrompt', text: userPrompt });
-                });
+        document.getElementById("askButton").addEventListener("click", () => {
+          const userPrompt = document.getElementById("userPrompt").value;
+          vscode.postMessage({ command: 'userPrompt', text: userPrompt });
+        });
 
-                window.addEventListener("message", event => {
-                    const { command, text } = event.data;
-                    if (command === "chatResponse") {
-                        document.getElementById("response").innerText = text;
-                    }
-                });
-            </script>
-        </body>
-        </html>
-    `;
+        window.addEventListener("message", event => {
+          const { command, text } = event.data;
+          if (command === "chatResponse") {
+            document.getElementById("response").innerText = text;
+          }
+        });
+      </script>
+    </body>
+    </html>
+  `;
 }
 // This method is called when your extension is deactivated
 function deactivate() { }

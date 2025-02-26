@@ -9,15 +9,28 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "*" 
+  ],
   "main": "./out/extension.js",
   "contributes": {
-    "commands": [
-      {
-        "command": "deepseek-ext.chat",
-        "title": "Run DeepSeek Chat"
-      }
-    ]
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "deepseek-ext",         
+          "title": "DeepSeek",       
+          "icon": "media/icon.svg"   
+        }
+      ]
+    },
+    "views": {
+      "deepseek-ext": [                 
+        {
+          "id": "deepseek-ext.view",   
+          "name": "Deep Seek Chat"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",

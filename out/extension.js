@@ -39,110 +39,40 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.activate = activate;
 exports.deactivate = deactivate;
 const vscode = __importStar(require("vscode"));
-const ollama_1 = __importDefault(require("ollama"));
+const DeepSeekProvider_1 = __importDefault(require("./providers/DeepSeekProvider"));
 // This is the main entry point for your extension
 function activate(context) {
-    // Create and register your WebviewViewProvider
-    const provider = new DeepSeekViewProvider(context.extensionUri);
-    context.subscriptions.push(vscode.window.registerWebviewViewProvider("deepseek-ext.view", // Matches the "id" from package.json
-    provider));
-    console.log("extension activated");
-}
-// A class that provides the webview for the sidebar
-class DeepSeekViewProvider {
-    _extensionUri;
-    constructor(_extensionUri) {
-        this._extensionUri = _extensionUri;
-        console.log("provider called");
-    }
-    // Called by VS Code when your view should be displayed
-    resolveWebviewView(webviewView, _context, _token) {
-        // Allow scripts in the webview
-        webviewView.webview.options = {
-            enableScripts: true,
-        };
-        // Set the initial HTML
-        webviewView.webview.html = getWebviewContent();
-        console.log("HTML initialized");
-        // Listen for messages from the webview
-        webviewView.webview.onDidReceiveMessage(async (message) => {
-            if (message.command === "userPrompt") {
-                const userPrompt = message.text;
-                let responseText = "";
-                console.log("Received user prompt: " + userPrompt);
-                try {
-                    const streamResponse = await ollama_1.default.chat({
-                        model: "deepseek-r1:32b",
-                        messages: [{ role: "user", content: userPrompt }],
-                        stream: true,
-                    });
-                    // Stream each chunk to the webview
-                    for await (const part of streamResponse) {
-                        responseText += part.message.content;
-                        webviewView.webview.postMessage({
-                            command: "chatResponse",
-                            text: responseText,
-                        });
-                    }
-                }
-                catch (error) {
-                    console.log("Error streaming response from ollama: " + error);
-                }
+    console.log("DeepSeek Extension: Activation started");
+    try {
+        // Create the WebviewViewProvider
+        const provider = new DeepSeekProvider_1.default(context.extensionUri);
+        // Register commands
+        const viewType = "deepseek-ext.view"; // Must match the ID in package.json
+        // Command to open the view
+        const openViewCommand = vscode.commands.registerCommand('deepseek-ext.openView', async () => {
+            try {
+                await vscode.commands.executeCommand('workbench.view.extension.deepseek-ext');
+            }
+            catch (err) {
+                console.error("Error opening DeepSeek view:", err);
             }
         });
-        console.log("view provider initialized");
+        context.subscriptions.push(openViewCommand);
+        // Register the provider
+        const disposable = vscode.window.registerWebviewViewProvider(viewType, provider, {
+            webviewOptions: {
+                retainContextWhenHidden: true
+            }
+        });
+        context.subscriptions.push(disposable);
+        console.log("DeepSeek Extension: Successfully activated");
+    }
+    catch (error) {
+        // Log any errors during activation
+        console.error("DeepSeek Extension: Error during activation", error);
+        vscode.window.showErrorMessage(`DeepSeek Extension activation failed: ${error instanceof Error ? error.message : String(error)}`);
     }
 }
-function getWebviewContent() {
-    return /*html*/ `
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Deep Seek Chat</title>
-      <style>
-        body {
-          font-family: sans-serif;
-          margin: 1rem;
-        }
-        #userPrompt {
-          width: 100%;
-          box-sizing: border-box;
-        }
-        #response {
-          border: 1px solid #ccc;
-          margin-top: 1rem;
-          padding: 0.5rem;
-          min-height: 400px;
-        }
-      </style>
-    </head>
-    <body>
-      <h2>Deep Seek VS Code Extension!</h2>
-      <textarea id="userPrompt" rows="3" placeholder="Ask anything..."></textarea><br />
-      <button id="askButton">Ask</button>
-      <div id="response"></div>
-
-      <script>
-        const vscode = acquireVsCodeApi();
-
-        document.getElementById("askButton").addEventListener("click", () => {
-          const userPrompt = document.getElementById("userPrompt").value;
-          vscode.postMessage({ command: 'userPrompt', text: userPrompt });
-        });
-
-        window.addEventListener("message", event => {
-          const { command, text } = event.data;
-          if (command === "chatResponse") {
-            document.getElementById("response").innerText = text;
-          }
-        });
-      </script>
-    </body>
-    </html>
-  `;
-}
-// This method is called when your extension is deactivated
+// This method is called when the extension is deactivated
 function deactivate() { }
 //# sourceMappingURL=extension.js.map

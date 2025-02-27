@@ -14,20 +14,28 @@
   ],
   "main": "./out/extension.js",
   "contributes": {
+    "commands": [
+      {
+        "command": "deepseek-ext.openView",
+        "title": "Open DeepSeek Chat View"
+      }
+    ],
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "deepseek-ext",         
-          "title": "DeepSeek",       
-          "icon": "media/icon.svg"   
+          "id": "deepseek-ext",
+          "title": "DeepSeek R1",
+          "icon": "media/icon.svg"
         }
       ]
     },
     "views": {
-      "deepseek-ext": [                 
+      "deepseek-ext": [
         {
-          "id": "deepseek-ext.view",   
-          "name": "Deep Seek Chat"
+          "type": "webview",
+          "id": "deepseek-ext.view",
+          "name": "DeepSeek Chat",
+          "when": "workbenchState == 'workspace' || workbenchState == 'folder'"
         }
       ]
     }

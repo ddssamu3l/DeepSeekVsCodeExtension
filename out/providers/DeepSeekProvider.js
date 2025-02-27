@@ -122,11 +122,16 @@ class DeepSeekViewProvider {
         try {
             // Add user message to conversation history
             this._conversationHistory.push({ role: "user", content: userPrompt });
+            // push a new assistance response to the conversation history, with a placeholder of "" since the resopsne has yet to come in
+            this._conversationHistory.push({
+                role: "assistant",
+                content: "",
+            });
             // For immediate feedback while Ollama loads
             this._view.webview.postMessage({
                 command: "chatResponse",
                 text: "Processing your request with DeepSeek R1...",
-                messages: this._conversationHistory
+                messages: this._conversationHistory,
             });
             try {
                 // Call Ollama with the full conversation history
@@ -138,28 +143,25 @@ class DeepSeekViewProvider {
                 });
                 // Reset the response text for the current assistant message
                 responseText = "";
-                // Stream each chunk to the webview
+                const newMsgIndex = this._conversationHistory.length - 1;
+                // Stream each chunk if the new resonse to the webview
                 for await (const part of streamResponse) {
                     responseText += part.message.content;
+                    // Add the current (incomplete) assistant message
+                    this._conversationHistory[newMsgIndex].content = responseText;
                     if (this._view) {
-                        // Create temporary conversation history with current response
-                        const currentHistory = [...this._conversationHistory];
-                        // Add the current (incomplete) assistant message
-                        currentHistory.push({ role: "assistant", content: responseText });
                         this._view.webview.postMessage({
                             command: "chatResponse",
                             text: responseText,
-                            messages: currentHistory
+                            messages: this._conversationHistory,
                         });
                     }
                 }
-                // Add the final assistant response to conversation history
-                this._conversationHistory.push({ role: "assistant", content: responseText });
                 console.log("Finished streaming response from Ollama");
                 // Set the status as completed
                 this._view.webview.postMessage({
                     command: "chatCompletion",
-                    messages: this._conversationHistory
+                    messages: this._conversationHistory,
                 });
             }
             catch (ollamaError) {
@@ -171,11 +173,14 @@ class DeepSeekViewProvider {
                             ? ollamaError.message
                             : String(ollamaError));
                     // Add error message to conversation history
-                    this._conversationHistory.push({ role: "assistant", content: errorMessage });
+                    this._conversationHistory.push({
+                        role: "assistant",
+                        content: errorMessage,
+                    });
                     this._view.webview.postMessage({
                         command: "chatResponse",
                         text: errorMessage,
-                        messages: this._conversationHistory
+                        messages: this._conversationHistory,
                     });
                 }
                 // Re-throw for outer catch

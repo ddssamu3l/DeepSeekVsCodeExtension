@@ -94,7 +94,7 @@ export default function getWebviewContent(): string {
         }
         .thinking-dots {
           display: inline-block;
-          width: 20px;
+          width: 50px;
         }
         .input-area {
           flex: 0 0 auto;
@@ -261,6 +261,12 @@ export default function getWebviewContent(): string {
             messageDiv.id = 'thinking-indicator';
           } else {
             messageDiv.className = role === 'user' ? 'chat-message user-message' : 'chat-message assistant-message';
+            
+            // For assistant messages, add an ID so we can find it later for updates
+            if (role === 'assistant') {
+              messageDiv.id = 'assistant-msg-' + Date.now();
+            }
+            
             messageDiv.textContent = content;
             
             // Remove thinking indicator if it exists
@@ -284,16 +290,36 @@ export default function getWebviewContent(): string {
           chatContainer.innerHTML = '<div class="welcome-message">Welcome to DeepSeek R1! Enter a prompt to start chatting.</div>';
         }
         
-        // Replace the last assistant message (used for streaming updates)
-        function updateLastAssistantMessage(content) {
-          const messages = document.querySelectorAll('.assistant-message');
-          if (messages.length > 0) {
-            const lastMessage = messages[messages.length - 1];
-            lastMessage.textContent = content;
+        // Update the current streaming assistant message (identified by thinking indicator)
+        function updateCurrentStreamingMessage(content) {
+          // First, look for a thinking indicator
+          const thinkingIndicator = document.getElementById('thinking-indicator');
+          
+          if (thinkingIndicator) {
+            // Create a new assistant message to replace the thinking indicator
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'chat-message assistant-message';
+            messageDiv.id = 'current-streaming-msg';
+            messageDiv.textContent = content;
+            
+            // Replace the thinking indicator with the message
+            const chatContainer = document.getElementById('chatContainer');
+            chatContainer.replaceChild(messageDiv, thinkingIndicator);
           } else {
-            // If no assistant message exists yet, create one
-            addMessage('assistant', content);
+            // Look for the current streaming message
+            const streamingMsg = document.getElementById('current-streaming-msg');
+            if (streamingMsg) {
+              streamingMsg.textContent = content;
+            } else {
+              // If somehow neither exists, just add a new message
+              const messageDiv = addMessage('assistant', content);
+              messageDiv.id = 'current-streaming-msg';
+            }
           }
+          
+          // Scroll to bottom
+          const chatContainer = document.getElementById('chatContainer');
+          chatContainer.scrollTop = chatContainer.scrollHeight;
         }
         
         // Render a full conversation from history
@@ -383,7 +409,7 @@ export default function getWebviewContent(): string {
             
             if (command === "chatResponse") {
               // Update the assistant's response as it's streaming in
-              updateLastAssistantMessage(text);
+              updateCurrentStreamingMessage(text);
             }
             else if (command === "chatCompletion") {
               document.getElementById("askButton").textContent = "Ask DeepSeek";

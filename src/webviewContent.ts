@@ -133,15 +133,6 @@ export default function getWebviewContent(): string {
           margin-left: 8px;
           background-color: var(--vscode-button-secondaryBackground, #5a5a5a);
         }
-        #stopButton {
-          margin-left: 8px;
-          background-color: rgb(136, 28, 28);
-          border: none; 
-          display: none;
-        }
-        #stopButton:hover {
-          background-color: rgb(153, 32, 32);
-        }
         #clearButton {
           margin-left: auto;
           background-color: var(--vscode-button-secondaryBackground, #5a5a5a);
@@ -215,17 +206,11 @@ export default function getWebviewContent(): string {
           <div class="button-row">
             <button id="askButton">Ask DeepSeek</button>
             <button id="testButton">Test Connection</button>
-            <button id="stopButton">Stop Generating</button>
           </div>
         </div>
       </div>
 
       <script>
-        // Show the "stop generating" button for stopping deepseek's response generation
-        function showStopButton(show) {
-          document.getElementById('stopButton').style.display = show ? 'flex' : 'none';
-        }
-
         // Show loading indicator
         function showLoading(show) {
           document.getElementById('loading').style.display = show ? 'flex' : 'none';
@@ -358,14 +343,12 @@ export default function getWebviewContent(): string {
             
             document.getElementById("status").textContent = "Sending request to DeepSeek...";
             document.getElementById("askButton").textContent = "Generating...";
-            showStopButton(true);
             document.getElementById("userPrompt").value = "";
             
             try {
               vscode.postMessage({ command: 'userPrompt', text: userPrompt });
             } catch (err) {
               document.getElementById("status").textContent = "Error sending request: " + err.message;
-              showStopButton(false);
             }
           });
           
@@ -414,7 +397,6 @@ export default function getWebviewContent(): string {
             else if (command === "chatCompletion") {
               document.getElementById("askButton").textContent = "Ask DeepSeek";
               document.getElementById("status").textContent = "Response completed!";
-              showStopButton(false);
 
               // If messages are provided, render them
               if (messages) {

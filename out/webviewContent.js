@@ -97,6 +97,15 @@ function getWebviewContent() {
           margin-left: 8px;
           background-color: var(--vscode-button-secondaryBackground, #5a5a5a);
         }
+        #stopButton {
+          margin-left: 8px;
+          background-color: rgb(136, 28, 28);
+          border: none; 
+          display: none;
+        }
+        #stopButton:hover {
+            background-color: rgb(153, 32, 32);
+        }
         .status {
           font-style: italic;
           margin: 5px 0;
@@ -141,16 +150,22 @@ function getWebviewContent() {
         </div>
         
         <div class="input-area">
+          <div class="status" id="status"></div>
           <textarea id="userPrompt" placeholder="Ask DeepSeek anything..."></textarea>
           <div class="button-row">
             <button id="askButton">Ask DeepSeek</button>
             <button id="testButton">Test Connection</button>
+            <button id="stopButton">Stop Generating</button>
           </div>
-          <div class="status" id="status"></div>
         </div>
       </div>
 
       <script>
+        // Show the "stop generating" button for stopping deepseek's response generation
+        function showStopButton(show){
+            document.getElementById('stopButton').style.display = show ? 'flex' : 'none';
+        }
+
         // Show loading indicator
         function showLoading(show) {
           document.getElementById('loading').style.display = show ? 'flex' : 'none';
@@ -219,17 +234,31 @@ function getWebviewContent() {
           window.addEventListener("message", event => {
             const { command, text } = event.data;
             if (command === "chatResponse") {
-              document.getElementById("status").textContent = "Received response";
+              document.getElementById("askButton").textContent = "Generating...";
+              document.getElementById("status").textContent = "Receiving response";
               document.getElementById("response").textContent = text;
+              showStopButton(true);
               showLoading(false);
               
               // Clear the input after successful response
               document.getElementById("userPrompt").value = "";
             }
+            else if(command === "chatCompletion"){
+                document.getElementById("askButton").textContent = "Ask DeepSeek";
+                document.getElementById("status").textContent = "Response completed!";
+                document.getElementById("userPrompt").value = "";
+                showStopButton(false);
+                showLoading(false);
+
+                // Reset the status after 3 seconds
+                setTimeout(() => {
+                    document.getElementById("status").textContent = "Ready for prompting";
+                }, 3000);
+            }
           });
 
           // Ready state
-          document.getElementById("status").textContent = "Ready";
+          document.getElementById("status").textContent = "Ready for prompting";
           
         } catch (err) {
           console.error('Fatal error:', err);

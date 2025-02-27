@@ -105,6 +105,11 @@ export default class DeepSeekViewProvider implements vscode.WebviewViewProvider 
         }
 
         console.log("Finished streaming response from Ollama");
+        
+        // set the status as completed
+        this._view.webview.postMessage({
+          command: "chatCompletion",
+        });
       } catch (ollamaError) {
         // If we can't connect to Ollama, send an error response
         console.error("Error with Ollama:", ollamaError);

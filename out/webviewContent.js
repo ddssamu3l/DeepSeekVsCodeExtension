@@ -315,7 +315,9 @@ function getWebviewContent() {
           clearChat();
           if (messages && messages.length > 0) {
             messages.forEach(msg => {
-              addMessage(msg.role, msg.content);
+              if(msg.role !== "system"){
+                addMessage(msg.role, msg.content);
+              }
             });
           }
         }

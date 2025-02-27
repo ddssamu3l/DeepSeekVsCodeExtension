@@ -34,6 +34,9 @@ export default function getWebviewContent(): string {
           flex: 0 0 auto;
           padding-bottom: 8px;
           border-bottom: 1px solid var(--vscode-panel-border, #ccc);
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
         }
         h2 {
           margin: 0 0 8px 0;
@@ -41,21 +44,57 @@ export default function getWebviewContent(): string {
           font-weight: 500;
           font-size: 18px;
         }
-        .response-container {
+        .chat-container {
           flex: 1 1 auto;
           overflow-y: auto;
           border: 1px solid var(--vscode-panel-border, #ccc);
-          padding: 10px;
           background-color: var(--vscode-editor-background, #fff);
           position: relative;
           margin: 16px 0;
+          display: flex;
+          flex-direction: column;
         }
-        #response {
+        .chat-message {
+          padding: 10px;
+          margin-bottom: 8px;
+          border-radius: 6px;
+          max-width: 85%;
           white-space: pre-wrap;
           overflow-wrap: break-word;
           font-family: var(--vscode-editor-font-family, monospace);
           font-size: var(--vscode-editor-font-size, 14px);
           line-height: 1.5;
+        }
+        .user-message {
+          align-self: flex-end;
+          background-color: var(--vscode-button-background, #0e639c);
+          color: white;
+          margin-right: 10px;
+          margin-top: 10px;
+        }
+        .assistant-message {
+          align-self: flex-start;
+          color: var(--vscode-foreground, #333);
+          margin-left: 5px;
+          margin-top: 10px;
+        }
+        .welcome-message {
+          text-align: center;
+          padding: 20px;
+          color: var(--vscode-descriptionForeground, #888);
+          font-style: italic;
+        }
+        .thinking {
+          align-self: flex-start;
+          color: var(--vscode-descriptionForeground, #888);
+          font-style: italic;
+          padding: 10px;
+          display: flex;
+          align-items: center;
+        }
+        .thinking-dots {
+          display: inline-block;
+          width: 20px;
         }
         .input-area {
           flex: 0 0 auto;
@@ -101,7 +140,11 @@ export default function getWebviewContent(): string {
           display: none;
         }
         #stopButton:hover {
-            background-color: rgb(153, 32, 32);
+          background-color: rgb(153, 32, 32);
+        }
+        #clearButton {
+          margin-left: auto;
+          background-color: var(--vscode-button-secondaryBackground, #5a5a5a);
         }
         .status {
           font-style: italic;
@@ -129,9 +172,28 @@ export default function getWebviewContent(): string {
           height: 30px;
           animation: spin 1s linear infinite;
         }
+        .dot {
+          display: inline-block;
+          width: 4px;
+          height: 4px;
+          border-radius: 50%;
+          margin-right: 3px;
+          background: var(--vscode-descriptionForeground, #888);
+          animation: dot-flashing 1s infinite linear alternate;
+        }
+        .dot:nth-child(2) {
+          animation-delay: 0.2s;
+        }
+        .dot:nth-child(3) {
+          animation-delay: 0.4s;
+        }
         @keyframes spin {
           0% { transform: rotate(0deg); }
           100% { transform: rotate(360deg); }
+        }
+        @keyframes dot-flashing {
+          0% { opacity: 0.2; }
+          100% { opacity: 1; }
         }
       </style>
     </head>
@@ -139,10 +201,11 @@ export default function getWebviewContent(): string {
       <div class="container">
         <div class="header">
           <h2>DeepSeek R1 Chat</h2>
+          <button id="clearButton">Clear Chat</button>
         </div>
         
-        <div class="response-container">
-          <div id="response">Welcome to DeepSeek R1! Enter a prompt and click 'Ask DeepSeek' to start chatting.</div>
+        <div class="chat-container" id="chatContainer">
+          <div class="welcome-message">Welcome to DeepSeek R1! Enter a prompt to start chatting.</div>
           <div id="loading"><div class="spinner"></div></div>
         </div>
         
@@ -159,8 +222,8 @@ export default function getWebviewContent(): string {
 
       <script>
         // Show the "stop generating" button for stopping deepseek's response generation
-        function showStopButton(show){
-            document.getElementById('stopButton').style.display = show ? 'flex' : 'none';
+        function showStopButton(show) {
+          document.getElementById('stopButton').style.display = show ? 'flex' : 'none';
         }
 
         // Show loading indicator
@@ -175,6 +238,74 @@ export default function getWebviewContent(): string {
           document.querySelector('.container').style.height = vh + 'px';
         }
         
+        // Add a new message to the chat container
+        function addMessage(role, content, isThinking = false) {
+          const chatContainer = document.getElementById('chatContainer');
+          
+          // Clear welcome message if it exists
+          const welcomeMessage = document.querySelector('.welcome-message');
+          if (welcomeMessage) {
+            welcomeMessage.remove();
+          }
+          
+          // Create message element
+          const messageDiv = document.createElement('div');
+          
+          if (isThinking) {
+            messageDiv.className = 'thinking';
+            messageDiv.innerHTML = \`Thinking<span class="thinking-dots">
+              <span class="dot"></span>
+              <span class="dot"></span>
+              <span class="dot"></span>
+            </span>\`;
+            messageDiv.id = 'thinking-indicator';
+          } else {
+            messageDiv.className = role === 'user' ? 'chat-message user-message' : 'chat-message assistant-message';
+            messageDiv.textContent = content;
+            
+            // Remove thinking indicator if it exists
+            const thinkingIndicator = document.getElementById('thinking-indicator');
+            if (thinkingIndicator) {
+              thinkingIndicator.remove();
+            }
+          }
+          
+          chatContainer.appendChild(messageDiv);
+          
+          // Scroll to bottom
+          chatContainer.scrollTop = chatContainer.scrollHeight;
+          
+          return messageDiv;
+        }
+        
+        // Clear all messages from the chat
+        function clearChat() {
+          const chatContainer = document.getElementById('chatContainer');
+          chatContainer.innerHTML = '<div class="welcome-message">Welcome to DeepSeek R1! Enter a prompt to start chatting.</div>';
+        }
+        
+        // Replace the last assistant message (used for streaming updates)
+        function updateLastAssistantMessage(content) {
+          const messages = document.querySelectorAll('.assistant-message');
+          if (messages.length > 0) {
+            const lastMessage = messages[messages.length - 1];
+            lastMessage.textContent = content;
+          } else {
+            // If no assistant message exists yet, create one
+            addMessage('assistant', content);
+          }
+        }
+        
+        // Render a full conversation from history
+        function renderConversation(messages) {
+          clearChat();
+          if (messages && messages.length > 0) {
+            messages.forEach(msg => {
+              addMessage(msg.role, msg.content);
+            });
+          }
+        }
+        
         // Call once on load and whenever window resizes
         window.addEventListener('resize', adjustHeight);
         
@@ -183,7 +314,7 @@ export default function getWebviewContent(): string {
           adjustHeight();
           
           // Acquire VSCode API
-          let vscode = acquireVsCodeApi();
+          const vscode = acquireVsCodeApi();
           
           // Handle Ask button click
           document.getElementById("askButton").addEventListener("click", () => {
@@ -193,15 +324,33 @@ export default function getWebviewContent(): string {
               return;
             }
             
+            // Add user message to the chat
+            addMessage('user', userPrompt);
+            
+            // Add thinking indicator
+            addMessage('assistant', '', true);
+            
             document.getElementById("status").textContent = "Sending request to DeepSeek...";
-            showLoading(true);
+            document.getElementById("askButton").textContent = "Generating...";
+            showStopButton(true);
+            document.getElementById("userPrompt").value = "";
             
             try {
               vscode.postMessage({ command: 'userPrompt', text: userPrompt });
             } catch (err) {
               document.getElementById("status").textContent = "Error sending request: " + err.message;
-              showLoading(false);
+              showStopButton(false);
             }
+          });
+          
+          // Handle Clear button click
+          document.getElementById("clearButton").addEventListener("click", () => {
+            clearChat();
+            vscode.postMessage({ command: 'clearConversation' });
+            document.getElementById("status").textContent = "Conversation cleared";
+            setTimeout(() => {
+              document.getElementById("status").textContent = "Ready for prompting";
+            }, 2000);
           });
           
           // Also handle Enter key to submit (Shift+Enter for new line)
@@ -215,7 +364,8 @@ export default function getWebviewContent(): string {
           // Handle Test button click
           document.getElementById("testButton").addEventListener("click", () => {
             document.getElementById("status").textContent = "Testing connection...";
-            document.getElementById("response").textContent = "Testing webview to extension communication...";
+            addMessage('user', 'Test message: Hello from the webview!');
+            addMessage('assistant', '', true);
             
             try {
               vscode.postMessage({ 
@@ -229,28 +379,35 @@ export default function getWebviewContent(): string {
 
           // Listen for messages from the extension
           window.addEventListener("message", event => {
-            const { command, text } = event.data;
+            const { command, text, messages } = event.data;
+            
             if (command === "chatResponse") {
-              document.getElementById("askButton").textContent = "Generating...";
-              document.getElementById("status").textContent = "Receiving response";
-              document.getElementById("response").textContent = text;
-              showStopButton(true);
-              showLoading(false);
-              
-              // Clear the input after successful response
-              document.getElementById("userPrompt").value = "";
+              // Update the assistant's response as it's streaming in
+              updateLastAssistantMessage(text);
             }
-            else if(command === "chatCompletion"){
-                document.getElementById("askButton").textContent = "Ask DeepSeek";
-                document.getElementById("status").textContent = "Response completed!";
-                document.getElementById("userPrompt").value = "";
-                showStopButton(false);
-                showLoading(false);
+            else if (command === "chatCompletion") {
+              document.getElementById("askButton").textContent = "Ask DeepSeek";
+              document.getElementById("status").textContent = "Response completed!";
+              showStopButton(false);
 
-                // Reset the status after 3 seconds
-                setTimeout(() => {
-                    document.getElementById("status").textContent = "Ready for prompting";
-                }, 3000);
+              // If messages are provided, render them
+              if (messages) {
+                renderConversation(messages);
+              }
+
+              // Reset the status after 3 seconds
+              setTimeout(() => {
+                document.getElementById("status").textContent = "Ready for prompting";
+              }, 3000);
+            }
+            else if (command === "loadConversation") {
+              // Load an existing conversation
+              if (messages && messages.length > 0) {
+                renderConversation(messages);
+              }
+            }
+            else if (command === "clearConversation") {
+              clearChat();
             }
           });
 

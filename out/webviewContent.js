@@ -79,7 +79,6 @@ function getWebviewContent() {
           align-self: flex-start;
           color: var(--vscode-foreground, #333);
           margin-left: 5px;
-          margin-top: 10px;
         }
         .welcome-message {
           text-align: center;
@@ -348,6 +347,8 @@ function getWebviewContent() {
             
             document.getElementById("status").textContent = "Sending request to DeepSeek...";
             document.getElementById("askButton").textContent = "Generating...";
+            document.getElementById("askButton").disabled = true;
+            document.getElementById("clearButton").disabled = true;
             document.getElementById("userPrompt").value = "";
             
             try {
@@ -402,6 +403,8 @@ function getWebviewContent() {
             else if (command === "chatCompletion") {
               document.getElementById("askButton").textContent = "Ask DeepSeek";
               document.getElementById("status").textContent = "Response completed!";
+              document.getElementById("askButton").disabled = false;
+              document.getElementById("clearButton").disabled = false;
 
               // If messages are provided, render them
               if (messages) {

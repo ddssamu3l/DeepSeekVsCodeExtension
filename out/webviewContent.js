@@ -1,7 +1,48 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.default = getWebviewContent;
+const markdownConverter_1 = require("./helpers/markdownConverter");
+const fs = __importStar(require("fs"));
+const path = __importStar(require("path"));
 function getWebviewContent() {
+    // import the markdownToHTML helper and convert it into a string. We will inject it to a <script> tag later.
+    const markdownToHTMLFunctionString = markdownConverter_1.markdownToHTML.toString();
+    // Read the CSS file
+    const cssPath = path.join(__dirname, '..', 'src', 'styles', 'chatStyles.css');
+    const cssContent = fs.readFileSync(cssPath, 'utf8');
     return /*html*/ `
     <!DOCTYPE html>
     <html lang="en">
@@ -11,183 +52,7 @@ function getWebviewContent() {
       <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline';">
       <title>DeepSeek Chat</title>
       <style>
-        html, body {
-          height: 100%;
-          margin: 0;
-          padding: 0;
-          overflow: hidden;
-        }
-        body {
-          font-family: var(--vscode-font-family, sans-serif);
-          color: var(--vscode-foreground, #333);
-          background-color: var(--vscode-editor-background, #fff);
-          font-size: var(--vscode-font-size, 13px);
-          display: flex;
-          flex-direction: column;
-        }
-        .container {
-          display: flex;
-          flex-direction: column;
-          height: 100vh;
-          width: 100%;
-          box-sizing: border-box;
-          padding: 16px;
-        }
-        .header {
-          flex: 0 0 auto;
-          padding-bottom: 8px;
-          border-bottom: 1px solid var(--vscode-panel-border, #ccc);
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        }
-        h2 {
-          margin: 0 0 8px 0;
-          color: var(--vscode-foreground, #333);
-          font-weight: 500;
-          font-size: 18px;
-        }
-        .chat-container {
-          flex: 1 1 auto;
-          overflow-y: auto;
-          border: 1px solid var(--vscode-panel-border, #ccc);
-          background-color: var(--vscode-editor-background, #fff);
-          position: relative;
-          margin: 16px 0;
-          display: flex;
-          flex-direction: column;
-        }
-        .chat-message {
-          padding: 10px;
-          margin-bottom: 8px;
-          border-radius: 6px;
-          max-width: 85%;
-          white-space: pre-wrap;
-          overflow-wrap: break-word;
-          font-family: var(--vscode-editor-font-family, monospace);
-          font-size: var(--vscode-editor-font-size, 14px);
-          line-height: 1.5;
-        }
-        .user-message {
-          align-self: flex-end;
-          background-color: var(--vscode-button-background, #0e639c);
-          color: white;
-          margin-right: 10px;
-          margin-top: 10px;
-        }
-        .assistant-message {
-          align-self: flex-start;
-          color: var(--vscode-foreground, #333);
-          margin-left: 5px;
-        }
-        .welcome-message {
-          text-align: center;
-          padding: 20px;
-          color: var(--vscode-descriptionForeground, #888);
-          font-style: italic;
-        }
-        .thinking {
-          align-self: flex-start;
-          color: var(--vscode-descriptionForeground, #888);
-          font-style: italic;
-          padding: 10px;
-          display: flex;
-          align-items: center;
-        }
-        .thinking-dots {
-          display: inline-block;
-          width: 50px;
-        }
-        .input-area {
-          flex: 0 0 auto;
-          margin-top: auto;
-          border-top: 1px solid var(--vscode-panel-border, #ccc);
-          padding-top: 16px;
-        }
-        #userPrompt {
-          width: 100%;
-          box-sizing: border-box;
-          background-color: var(--vscode-input-background, #fff);
-          color: var(--vscode-input-foreground, #333);
-          border: 1px solid var(--vscode-input-border, #ccc);
-          padding: 8px;
-          font-family: var(--vscode-font-family, sans-serif);
-          font-size: var(--vscode-font-size, 13px);
-          resize: none;
-          height: 60px;
-          min-height: 60px;
-        }
-        .button-row {
-          display: flex;
-          margin: 8px 0;
-        }
-        button {
-          background-color: var(--vscode-button-background, #0e639c);
-          color: var(--vscode-button-foreground, #fff);
-          padding: 6px 12px;
-          border: none;
-          cursor: pointer;
-        }
-        button:hover {
-          background-color: var(--vscode-button-hoverBackground, #1177bb);
-        }
-        #testButton {
-          margin-left: 8px;
-          background-color: var(--vscode-button-secondaryBackground, #5a5a5a);
-        }
-        #clearButton {
-          margin-left: auto;
-          background-color: var(--vscode-button-secondaryBackground, #5a5a5a);
-        }
-        .status {
-          font-style: italic;
-          margin: 5px 0;
-          color: var(--vscode-descriptionForeground, #888);
-          min-height: 20px;
-        }
-        #loading {
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background-color: rgba(0,0,0,0.1);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          display: none;
-        }
-        .spinner {
-          border: 4px solid rgba(0, 0, 0, 0.1);
-          border-radius: 50%;
-          border-top: 4px solid var(--vscode-button-background, #0e639c);
-          width: 30px;
-          height: 30px;
-          animation: spin 1s linear infinite;
-        }
-        .dot {
-          display: inline-block;
-          width: 4px;
-          height: 4px;
-          border-radius: 50%;
-          margin-right: 3px;
-          background: var(--vscode-descriptionForeground, #888);
-          animation: dot-flashing 1s infinite linear alternate;
-        }
-        .dot:nth-child(2) {
-          animation-delay: 0.2s;
-        }
-        .dot:nth-child(3) {
-          animation-delay: 0.4s;
-        }
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-        @keyframes dot-flashing {
-          0% { opacity: 0.2; }
-          100% { opacity: 1; }
-        }
+        ${cssContent}
       </style>
     </head>
     <body>
@@ -213,6 +78,9 @@ function getWebviewContent() {
       </div>
 
       <script>
+        // Inject markdown string to HTML helper function
+        const markdownToHTML = ${markdownToHTMLFunctionString};
+
         // Show loading indicator
         function showLoading(show) {
           document.getElementById('loading').style.display = show ? 'flex' : 'none';
@@ -226,7 +94,7 @@ function getWebviewContent() {
         }
         
         // Add a new message to the chat container
-        function addMessage(role, content, isThinking = false) {
+        function addMessage(role, content) {
           const chatContainer = document.getElementById('chatContainer');
           
           // Clear welcome message if it exists
@@ -237,34 +105,18 @@ function getWebviewContent() {
           
           // Create message element
           const messageDiv = document.createElement('div');
+          messageDiv.className = role === 'user' ? 'chat-message user-message' : 'chat-message assistant-message';
           
-          if (isThinking) {
-            messageDiv.className = 'thinking';
-            messageDiv.innerHTML = \`Thinking<span class="thinking-dots">
-              <span class="dot"></span>
-              <span class="dot"></span>
-              <span class="dot"></span>
-            </span>\`;
-            messageDiv.id = 'thinking-indicator';
-          } else {
-            messageDiv.className = role === 'user' ? 'chat-message user-message' : 'chat-message assistant-message';
-            
-            // For assistant messages, add an ID so we can find it later for updates
-            if (role === 'assistant') {
-              messageDiv.id = 'assistant-msg-' + Date.now();
-            }
-            
+          // For assistant messages, add an ID so we can find it later for updates
+          if (role === 'assistant') {
+            messageDiv.id = 'assistant-msg-' + Date.now();
+            messageDiv.innerHTML = markdownToHTML(content);
+          }else{
             messageDiv.textContent = content;
-            
-            // Remove thinking indicator if it exists
-            const thinkingIndicator = document.getElementById('thinking-indicator');
-            if (thinkingIndicator) {
-              thinkingIndicator.remove();
-            }
           }
-          
+
           chatContainer.appendChild(messageDiv);
-          
+
           // Scroll to bottom
           chatContainer.scrollTop = chatContainer.scrollHeight;
           
@@ -279,30 +131,16 @@ function getWebviewContent() {
         
         // Update the current streaming assistant message (identified by thinking indicator)
         function updateCurrentStreamingMessage(content) {
-          // First, look for a thinking indicator
-          const thinkingIndicator = document.getElementById('thinking-indicator');
-          
-          if (thinkingIndicator) {
-            // Create a new assistant message to replace the thinking indicator
-            const messageDiv = document.createElement('div');
-            messageDiv.className = 'chat-message assistant-message';
-            messageDiv.id = 'current-streaming-msg';
-            messageDiv.textContent = content;
-            
-            // Replace the thinking indicator with the message
-            const chatContainer = document.getElementById('chatContainer');
-            chatContainer.replaceChild(messageDiv, thinkingIndicator);
+          // Look for the current streaming message
+          const streamingMsg = document.getElementById('current-streaming-msg');
+          if (streamingMsg) {
+            streamingMsg.innerHTML = markdownToHTML(content);
           } else {
-            // Look for the current streaming message
-            const streamingMsg = document.getElementById('current-streaming-msg');
-            if (streamingMsg) {
-              streamingMsg.textContent = content;
-            } else {
-              // If somehow neither exists, just add a new message
-              const messageDiv = addMessage('assistant', content);
-              messageDiv.id = 'current-streaming-msg';
-            }
+            // If somehow neither exists, just add a new message
+            const messageDiv = addMessage('assistant', content);
+            messageDiv.id = 'current-streaming-msg';
           }
+          
           
           // Scroll to bottom
           const chatContainer = document.getElementById('chatContainer');
@@ -343,7 +181,7 @@ function getWebviewContent() {
             addMessage('user', userPrompt);
             
             // Add thinking indicator
-            addMessage('assistant', '', true);
+            addMessage('assistant', '');
             
             document.getElementById("status").textContent = "Sending request to DeepSeek...";
             document.getElementById("askButton").textContent = "Generating...";
@@ -365,7 +203,7 @@ function getWebviewContent() {
             document.getElementById("status").textContent = "Conversation cleared";
             setTimeout(() => {
               document.getElementById("status").textContent = "Ready for prompting";
-            }, 2000);
+            }, 3000);
           });
           
           // Also handle Enter key to submit (Shift+Enter for new line)
@@ -380,7 +218,7 @@ function getWebviewContent() {
           document.getElementById("testButton").addEventListener("click", () => {
             document.getElementById("status").textContent = "Testing connection...";
             addMessage('user', 'Test message: Hello from the webview!');
-            addMessage('assistant', '', true);
+            addMessage('assistant', '');
             
             try {
               vscode.postMessage({ 
@@ -398,7 +236,12 @@ function getWebviewContent() {
             
             if (command === "chatResponse") {
               // Update the assistant's response as it's streaming in
-              updateCurrentStreamingMessage(text);
+              if(text){
+                updateCurrentStreamingMessage(text);
+              }else{
+                updateCurrentStreamingMessage("Processing your request with DeepSeek R1...");
+              }
+              document.getElementById("status").textContent = "Receiving response...";
             }
             else if (command === "chatCompletion") {
               document.getElementById("askButton").textContent = "Ask DeepSeek";

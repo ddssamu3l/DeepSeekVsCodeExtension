@@ -47,7 +47,7 @@ function activate(context) {
         // Create the WebviewViewProvider
         const provider = new DeepSeekProvider_1.default(context.extensionUri);
         // Register commands
-        const viewType = "deepseek-ext.view"; // Must match the ID in package.json
+        const viewType = "deepseek-ext.view";
         // Command to open the view
         const openViewCommand = vscode.commands.registerCommand('deepseek-ext.openView', async () => {
             try {

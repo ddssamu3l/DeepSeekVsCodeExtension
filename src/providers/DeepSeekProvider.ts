@@ -48,7 +48,7 @@ export default class DeepSeekViewProvider implements vscode.WebviewViewProvider 
       });
 
       // set the system prompt to prepare the DeepSeek agent
-      this._conversationHistory.push({ role: "system", content: "You are an agent that exists in a VsCode extension where there is a chat interface that the user can communicate to you with. You will assume the task of helping the user with code-related subjects. When thinking and giving out your resonse, try to be concise and explain concepts as if the user is new to the topic or techstack/framework. If the user asks a non-coding related quesiton, just answer the question like a general-purpose chatbot and don't overthink the prompt."});
+      this._conversationHistory.push({ role: "system", content: "You are an agent that exists in a VsCode extension where there is a chat interface that the user can communicate to you with."});
     } catch (error) {
       console.error("Error initializing webview:", error);
       vscode.window.showErrorMessage(
@@ -126,7 +126,7 @@ export default class DeepSeekViewProvider implements vscode.WebviewViewProvider 
         // Call Ollama with the full conversation history
         console.log("Calling Ollama API with conversation history");
         const streamResponse = await ollama.chat({
-          model: "deepseek-r1:32b",
+          model: "deepseek-r1:70b",
           messages: this._conversationHistory,
           stream: true,
         });

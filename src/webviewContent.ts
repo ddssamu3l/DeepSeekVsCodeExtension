@@ -26,7 +26,15 @@ export default function getWebviewContent(): string {
     <body>
       <div class="container">
         <div class="header">
-          <h2>DeepSeek R1 Chat</h2>
+          <select class="model-selector" name="model-selector" id="model-selector">
+            <option value="deepseek-r1:1.5b">DeepSeek R1 1.5b (1.5GB)</option>
+            <option value="deepseek-r1:7b">DeepSeek R1 7b (4.7GB)</option>
+            <option value="deepseek-r1:8b" selected>DeepSeek R1 8b (4.9GB)</option>
+            <option value="deepseek-r1:14b">DeepSeek R1 14b (9GB)</option>
+            <option value="deepseek-r1:32b">DeepSeek R1 32b (20GB)</option>
+            <option value="deepseek-r1:70b">DeepSeek R1 70b (43GB)</option>
+            <option value="deepseek-r1:671b">DeepSeek R1 671b (404GB)</option>
+          </select>
           <button id="clearButton">Clear Chat</button>
         </div>
         
@@ -48,6 +56,60 @@ export default function getWebviewContent(): string {
       <script>
         // Inject markdown string to HTML helper function
         const markdownToHTML = ${markdownToHTMLFunctionString};
+
+        // Check if a DeepSeek model is installed in Ollama
+        async function modelInstalled(modelName) {
+          console.log("modelInstalled function called with model: " + modelName);
+          
+          // Send a debug message first to verify communication is working
+          try {
+            console.log("Sending debug message to extension");
+            vscode.postMessage({ 
+              command: 'debug', 
+              text: 'Debug message from webview - testing communication' 
+            });
+          } catch (e) {
+            console.error("Failed to send debug message:", e);
+          }
+          
+          try {
+            // Send message to extension host to check if model is installed
+            console.log('Sending checkModelInstalled message to extension');
+            vscode.postMessage({ 
+              command: 'checkModelInstalled', 
+              modelName: modelName 
+            });
+            console.log('Message sent to extension');
+            
+            // Get the result from checking whether a model is installed. The result is returned via another command called "modelInstalledResult". modelInstalledResult can return true or false
+            return new Promise((resolve) => {
+              console.log('Setting up message handler for modelInstalledResult');
+              const messageHandler = (event) => {
+                console.log('Received message in handler:', event.data);
+                const { command, isInstalled } = event.data;
+                if (command === 'modelInstalledResult') {
+                  console.log("Got modelInstalledResult");
+                  window.removeEventListener('message', messageHandler);
+                  resolve(isInstalled);
+                }
+              };
+              
+              window.addEventListener('message', messageHandler);
+              console.log('Added message event listener');
+              
+              // Set a timeout in case we don't get a response
+              console.log('Setting timeout for model check');
+              setTimeout(() => {
+                console.log('Timeout reached for model check, resolving as false');
+                window.removeEventListener('message', messageHandler);
+                resolve(false);
+              }, 5000);
+            });
+          } catch (error) {
+            console.error('Error checking if model is installed:', error);
+            return false;
+          }
+        }
 
         // Show loading indicator
         function showLoading(show) {
@@ -136,7 +198,40 @@ export default function getWebviewContent(): string {
           
           // Acquire VSCode API
           const vscode = acquireVsCodeApi();
-          
+          console.log('VSCode API acquired');
+
+          // Handle model-selector. Check whether the selected DeepSeek model is installed. If not, give a warning.
+          document.getElementById("model-selector").addEventListener("change", async (event) => {
+            console.log('Model selector change event triggered');
+            if(!event || !event.target) {
+              console.log('Event or target is null, returning');
+              return;
+            }
+            
+            const select = event.target as HTMLSelectElement;
+            const modelName = select.value;
+            console.log("Selected model");
+            
+            console.log('Calling modelInstalled function');
+            const isInstalled = await modelInstalled(modelName);
+            console.log("Model installed check result");
+            const statusElem = document.getElementById("status");
+            const askButtonElem = document.getElementById("askButton");
+            const testButtonElem = document.getElementById("testButton");
+            if (!isInstalled) {
+              statusElem.textContent = "Error: selected model not installed. Please install the current model with Ollama or select a different model";
+              statusElem.style.color = "red";
+              askButtonElem.disabled = true;
+              testButtonElem.disabled = false;
+            } else {
+              statusElem.textContent = "Ready for prompting";
+              statusElem.style.color = "";
+              askButtonElem.disabled = false;
+              testButtonElem.disabled = false;
+              vscode.postMessage({ command: 'setModel', modelName: modelName });
+            }
+          });
+
           // Handle Ask button click
           document.getElementById("askButton").addEventListener("click", () => {
             const userPrompt = document.getElementById("userPrompt").value.trim();
@@ -199,23 +294,40 @@ export default function getWebviewContent(): string {
           });
 
           // Listen for messages from the extension
+          console.log("Setting up main message event listener");
           window.addEventListener("message", event => {
-            const { command, text, messages } = event.data;
+            // console.log main message event received
+            const { command, text, messages, isInstalled } = event.data;
             
             if (command === "chatResponse") {
+              console.log('Received chatResponse command');
               // Update the assistant's response as it's streaming in
               if(text){
                 updateCurrentStreamingMessage(text);
               }else{
                 updateCurrentStreamingMessage("Processing your request with DeepSeek R1...");
               }
-              document.getElementById("status").textContent = "Receiving response...";
+              const statusElem = document.getElementById("status");
+              if (statusElem) {
+                statusElem.textContent = "Receiving response...";
+              } else {
+                console.log('ERROR: status element not found when updating for chatResponse!');
+              }
             }
             else if (command === "chatCompletion") {
-              document.getElementById("askButton").textContent = "Ask DeepSeek";
-              document.getElementById("status").textContent = "Response completed!";
-              document.getElementById("askButton").disabled = false;
-              document.getElementById("clearButton").disabled = false;
+              console.log('Received chatCompletion command');
+              const askButtonElem = document.getElementById("askButton");
+              const statusElem = document.getElementById("status");
+              const clearButtonElem = document.getElementById("clearButton");
+              
+              if (!askButtonElem) console.log('ERROR: askButton element not found in chatCompletion handler!');
+              if (!statusElem) console.log('ERROR: status element not found in chatCompletion handler!');
+              if (!clearButtonElem) console.log('ERROR: clearButton element not found in chatCompletion handler!');
+              
+              if (askButtonElem) askButtonElem.textContent = "Ask DeepSeek";
+              if (statusElem) statusElem.textContent = "Response completed!";
+              if (askButtonElem) askButtonElem.disabled = false;
+              if (clearButtonElem) clearButtonElem.disabled = false;
 
               // If messages are provided, render them
               if (messages) {
@@ -224,23 +336,85 @@ export default function getWebviewContent(): string {
 
               // Reset the status after 3 seconds
               setTimeout(() => {
-                document.getElementById("status").textContent = "Ready for prompting";
+                const statusElem = document.getElementById("status");
+                if (statusElem) statusElem.textContent = "Ready for prompting";
               }, 3000);
             }
             else if (command === "loadConversation") {
+              console.log('Received loadConversation command');
               // Load an existing conversation
               if (messages && messages.length > 0) {
                 renderConversation(messages);
               }
             }
             else if (command === "clearConversation") {
+              console.log('Received clearConversation command');
               clearChat();
+            }
+            else if (command === "modelInstalledResult") {
+              console.log("Received modelInstalledResult in main listener");
+              // This is handled in the modelInstalled function's dedicated listener
+            }
+            else {
+              console.log("Received unknown command");
             }
           });
 
           // Ready state
-          document.getElementById("status").textContent = "Ready for prompting";
+          const initialStatusElem = document.getElementById("status");
+          if (initialStatusElem) {
+            initialStatusElem.textContent = "Ready for prompting";
+          } else {
+            console.log("ERROR: status element not found during initial ready state!");
+          }
           
+          // Trigger model check on initial load
+          console.log('Starting initial model check');
+          const modelSelector = document.getElementById("model-selector") as HTMLSelectElement;
+          if (modelSelector) {
+            console.log('Model selector found');
+            const modelName = modelSelector.value;
+            console.log("Initial selected model");
+            
+            (async () => {
+              console.log('Starting async initial model check');
+              try {
+                console.log('Calling modelInstalled on page load');
+                const isInstalled = await modelInstalled(modelName);
+                console.log("Initial model check result");
+                
+                const statusElem = document.getElementById("status");
+                const askButtonElem = document.getElementById("askButton");
+                const testButtonElem = document.getElementById("testButton");
+                
+                if (!statusElem) console.log('ERROR: status element not found on initial check!');
+                if (!askButtonElem) console.log('ERROR: askButton element not found on initial check!');
+                if (!testButtonElem) console.log('ERROR: testButton element not found on initial check!');
+                
+                if (!isInstalled) {
+                  console.log('Initial model not installed, updating UI');
+                  if (statusElem) {
+                    statusElem.textContent = "Error: selected model not installed. Please install the current model with Ollama or select a different model";
+                    statusElem.style.color = "red";
+                  }
+                  if (askButtonElem) askButtonElem.disabled = true;
+                  if (testButtonElem) testButtonElem.disabled = true;
+                } else {
+                  console.log('Initial model is installed, updating UI');
+                  if (statusElem) {
+                    statusElem.textContent = "Ready for prompting";
+                    statusElem.style.color = "";
+                  }
+                  if (askButtonElem) askButtonElem.disabled = false;
+                  if (testButtonElem) testButtonElem.disabled = false;
+                  vscode.postMessage({ command: 'setModel', modelName: modelName });
+                  console.log('Sent initial setModel message to extension');
+                }
+              } catch (error) {
+                console.error('Error during initial model check:', error);
+              }
+            })();
+          }
         } catch (err) {
           console.error('Fatal error:', err);
           document.body.innerHTML = \`

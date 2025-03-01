@@ -13,6 +13,7 @@ interface Message {
 export default class DeepSeekViewProvider implements vscode.WebviewViewProvider {
   private _view?: vscode.WebviewView;
   private _conversationHistory: Message[] = [];
+  private _currentModel: string = "deepseek-r1:8b"; // default model
 
   constructor(private readonly _extensionUri: vscode.Uri) {}
 
@@ -23,6 +24,8 @@ export default class DeepSeekViewProvider implements vscode.WebviewViewProvider 
     _token: vscode.CancellationToken
   ) {
     try {
+      console.log("DeepSeek Provider: resolveWebviewView called");
+      
       // Store the webview instance
       this._view = webviewView;
 
@@ -34,9 +37,12 @@ export default class DeepSeekViewProvider implements vscode.WebviewViewProvider 
 
       // Set the webview content
       this._updateWebview();
+      console.log("DeepSeek Provider: Webview content updated");
 
       // Handle messages from the webview
       this._view.webview.onDidReceiveMessage(async (message: any) => {
+        console.log("DeepSeek Provider: Received message from webview:", message.command);
+        
         if (message.command === "userPrompt") {
           await this._handleUserPrompt(message.text);
         } else if (message.command === "clearConversation") {
@@ -44,6 +50,12 @@ export default class DeepSeekViewProvider implements vscode.WebviewViewProvider 
         } else if (message.command === "debug") {
           // Allow webview to send debug messages
           console.log("DEBUG from webview:", message.text);
+        } else if (message.command === "checkModelInstalled") {
+          console.log("DeepSeek Provider: Checking if model is installed:", message.modelName);
+          await this._checkModelInstalled(message.modelName);
+        } else if (message.command === "setModel") {
+          this._currentModel = message.modelName;
+          console.log(`DeepSeek Provider: Model set to: ${this._currentModel}`);
         }
       });
 
@@ -67,16 +79,23 @@ export default class DeepSeekViewProvider implements vscode.WebviewViewProvider 
     }
 
     try {
+      console.log("Generating webview content");
       const htmlContent = getWebviewContent();
+      console.log("Setting webview HTML content");
       this._view.webview.html = htmlContent;
       
       // After a short delay, send conversation history if available
+      console.log("Setting timeout to load conversation history");
       setTimeout(() => {
+        console.log("Timeout fired for conversation history loading");
         if (this._view && this._conversationHistory.length > 0) {
+          console.log("Sending loadConversation message to webview");
           this._view.webview.postMessage({
             command: "loadConversation",
             messages: this._conversationHistory
           });
+        } else {
+          console.log("No conversation history to load or view is undefined");
         }
       }, 300);
     } catch (error) {
@@ -93,6 +112,57 @@ export default class DeepSeekViewProvider implements vscode.WebviewViewProvider 
   private _clearConversation() {
     // clear all messages except for the system prompt
     this._conversationHistory.length = 1;
+  }
+  
+  // Check if a model is installed with Ollama
+  private async _checkModelInstalled(modelName: string) {
+    console.log("_checkModelInstalled method started with model:", modelName);
+    
+    if (!this._view) {
+      console.error("Cannot check model - view is undefined");
+      return;
+    }
+    
+    try {
+      console.log(`Checking if model ${modelName} is installed with Ollama API...`);
+      
+      try {
+        // Try to get the model info - if it succeeds, the model is installed
+        await ollama.show({ model: modelName });
+        
+        console.log(`Model ${modelName} is installed successfully`);
+        
+        // If successful, the model is installed
+        console.log("Sending modelInstalledResult: true to webview");
+        this._view.webview.postMessage({
+          command: "modelInstalledResult",
+          isInstalled: true
+        });
+        
+        return true;
+      } catch (error) {
+        // If there's an error, the model is not installed
+        console.log(`Model ${modelName} is not installed:`, error);
+        
+        console.log("Sending modelInstalledResult: false to webview");
+        this._view.webview.postMessage({
+          command: "modelInstalledResult",
+          isInstalled: false
+        });
+        
+        return false;
+      }
+    } catch (error) {
+      console.error("Error checking model status:", error);
+      
+      console.log("Sending modelInstalledResult: false to webview due to error");
+      this._view.webview.postMessage({
+        command: "modelInstalledResult",
+        isInstalled: false
+      });
+      
+      return false;
+    }
   }
 
   // Handle user prompts sent from the webview
@@ -123,10 +193,10 @@ export default class DeepSeekViewProvider implements vscode.WebviewViewProvider 
       });
 
       try {
-        // Call Ollama with the full conversation history
-        console.log("Calling Ollama API with conversation history");
+        // Call Ollama with the full conversation history and selected model
+        console.log(`Calling Ollama API with model ${this._currentModel}`);
         const streamResponse = await ollama.chat({
-          model: "deepseek-r1:70b",
+          model: this._currentModel,
           messages: this._conversationHistory,
           stream: true,
         });

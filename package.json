@@ -1,7 +1,8 @@
 {
   "name": "deepseek-ext",
-  "displayName": "deepseek-ext",
+  "displayName": "DeepSeek R1 Extension",
   "description": "",
+  "icon": "media/icon.png",
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.96.0"
@@ -24,8 +25,8 @@
       "activitybar": [
         {
           "id": "deepseek-ext",
-          "title": "DeepSeek R1",
-          "icon": "media/icon.svg"
+          "title": "DeepSeek R1 Extension",
+          "icon": "media/file.svg"
         }
       ]
     },

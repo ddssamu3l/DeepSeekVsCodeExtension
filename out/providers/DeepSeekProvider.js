@@ -44,6 +44,7 @@ class DeepSeekViewProvider {
     _extensionUri;
     _view;
     _conversationHistory = [];
+    _currentModel = "deepseek-r1:8b"; // default model
     constructor(_extensionUri) {
         this._extensionUri = _extensionUri;
     }
@@ -71,9 +72,16 @@ class DeepSeekViewProvider {
                     // Allow webview to send debug messages
                     console.log("DEBUG from webview:", message.text);
                 }
+                else if (message.command === "checkModelInstalled") {
+                    await this._checkModelInstalled(message.modelName);
+                }
+                else if (message.command === "setModel") {
+                    console.log("DeepSeek model set to: " + message.modelName);
+                    this._currentModel = message.modelName;
+                }
             });
             // set the system prompt to prepare the DeepSeek agent
-            this._conversationHistory.push({ role: "system", content: "You are an agent that exists in a VsCode extension where there is a chat interface that the user can communicate to you with. You will assume the task of helping the user with code-related subjects. When thinking and giving out your resonse, try to be concise and explain concepts as if the user is new to the topic or techstack/framework. If the user asks a non-coding related quesiton, just answer the question like a general-purpose chatbot and don't overthink the prompt." });
+            this._conversationHistory.push({ role: "system", content: "You are an agent that exists in a VsCode extension where there is a chat interface that the user can communicate to you with." });
         }
         catch (error) {
             console.error("Error initializing webview:", error);
@@ -109,6 +117,42 @@ class DeepSeekViewProvider {
         // clear all messages except for the system prompt
         this._conversationHistory.length = 1;
     }
+    // Check if a model is installed with Ollama
+    async _checkModelInstalled(modelName) {
+        if (!this._view) {
+            console.error("Cannot check model - view is undefined");
+            return;
+        }
+        try {
+            try {
+                // Try to get the model info - if it succeeds, the model is installed
+                await ollama_1.default.show({ model: modelName });
+                // If successful, the model is installed
+                this._view.webview.postMessage({
+                    command: "modelInstalledResult",
+                    isInstalled: true
+                });
+                return true;
+            }
+            catch (error) {
+                // If there's an error, the model is not installed
+                console.log(`Model ${modelName} is not installed`);
+                this._view.webview.postMessage({
+                    command: "modelInstalledResult",
+                    isInstalled: false
+                });
+                return false;
+            }
+        }
+        catch (error) {
+            console.error("Error checking model status:", error);
+            this._view.webview.postMessage({
+                command: "modelInstalledResult",
+                isInstalled: false
+            });
+            return false;
+        }
+    }
     // Handle user prompts sent from the webview
     async _handleUserPrompt(userPrompt) {
         if (!this._view) {
@@ -132,10 +176,10 @@ class DeepSeekViewProvider {
                 messages: this._conversationHistory,
             });
             try {
-                // Call Ollama with the full conversation history
-                console.log("Calling Ollama API with conversation history");
+                // Call Ollama with the full conversation history and selected model
+                console.log(`Calling Ollama API with model ${this._currentModel}`);
                 const streamResponse = await ollama_1.default.chat({
-                    model: "deepseek-r1:32b",
+                    model: this._currentModel,
                     messages: this._conversationHistory,
                     stream: true,
                 });

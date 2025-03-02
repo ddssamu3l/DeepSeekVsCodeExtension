@@ -42,5 +42,9 @@ export function markdownToHTML(markdown: string): string {
   // Convert remaining newlines to <br> for simple line breaks.
   html = html.replace(/\n/g, '<br>');
 
+  // convert <think> tags to <div> tag with a "think" class
+  html = html.replace(/<think>/g, '<p>');
+  html = html.replace(/<\/think>/g, '</p>');
+
   return html;
 }

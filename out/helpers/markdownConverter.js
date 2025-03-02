@@ -35,6 +35,9 @@ function markdownToHTML(markdown) {
     html = html.replace(/(<li>[\s\S]+?<\/li>)/gim, '<ol>$1</ol>');
     // Convert remaining newlines to <br> for simple line breaks.
     html = html.replace(/\n/g, '<br>');
+    // convert <think> tags to <div> tag with a "think" class
+    html = html.replace(/<think>/g, '<p>');
+    html = html.replace(/<\/think>/g, '</p>');
     return html;
 }
 //# sourceMappingURL=markdownConverter.js.map

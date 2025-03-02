@@ -54,38 +54,25 @@ export default function getWebviewContent(): string {
       </div>
 
       <script>
+        // Acquire VSCode API
+        const vscode =  acquireVsCodeApi();
+        console.log('VSCode API acquired');
+
         // Inject markdown string to HTML helper function
         const markdownToHTML = ${markdownToHTMLFunctionString};
 
         // Check if a DeepSeek model is installed in Ollama
-        async function modelInstalled(modelName) {
-          console.log("modelInstalled function called with model: " + modelName);
-          
-          // Send a debug message first to verify communication is working
-          try {
-            console.log("Sending debug message to extension");
-            vscode.postMessage({ 
-              command: 'debug', 
-              text: 'Debug message from webview - testing communication' 
-            });
-          } catch (e) {
-            console.error("Failed to send debug message:", e);
-          }
-          
+        async function modelInstalled(modelName) {          
           try {
             // Send message to extension host to check if model is installed
-            console.log('Sending checkModelInstalled message to extension');
             vscode.postMessage({ 
               command: 'checkModelInstalled', 
               modelName: modelName 
             });
-            console.log('Message sent to extension');
             
             // Get the result from checking whether a model is installed. The result is returned via another command called "modelInstalledResult". modelInstalledResult can return true or false
             return new Promise((resolve) => {
-              console.log('Setting up message handler for modelInstalledResult');
               const messageHandler = (event) => {
-                console.log('Received message in handler:', event.data);
                 const { command, isInstalled } = event.data;
                 if (command === 'modelInstalledResult') {
                   console.log("Got modelInstalledResult");
@@ -195,10 +182,6 @@ export default function getWebviewContent(): string {
         try {
           // Set initial heights
           adjustHeight();
-          
-          // Acquire VSCode API
-          const vscode = acquireVsCodeApi();
-          console.log('VSCode API acquired');
 
           // Handle model-selector. Check whether the selected DeepSeek model is installed. If not, give a warning.
           document.getElementById("model-selector").addEventListener("change", async (event) => {
@@ -208,26 +191,29 @@ export default function getWebviewContent(): string {
               return;
             }
             
-            const select = event.target as HTMLSelectElement;
+            const select = event.target;
             const modelName = select.value;
             console.log("Selected model");
             
-            console.log('Calling modelInstalled function');
             const isInstalled = await modelInstalled(modelName);
             console.log("Model installed check result");
             const statusElem = document.getElementById("status");
             const askButtonElem = document.getElementById("askButton");
             const testButtonElem = document.getElementById("testButton");
+            const clearButtonElem = document.getElementById("clearButton");
+
             if (!isInstalled) {
-              statusElem.textContent = "Error: selected model not installed. Please install the current model with Ollama or select a different model";
+              statusElem.textContent = 'Error: selected model is not installed on your machine. Please install the current model with Ollama by running: "ollama pull ' + modelName + '" or select a different model';
               statusElem.style.color = "red";
               askButtonElem.disabled = true;
-              testButtonElem.disabled = false;
+              testButtonElem.disabled = true;
+              clearButtonElem.disabled = true;
             } else {
               statusElem.textContent = "Ready for prompting";
               statusElem.style.color = "";
               askButtonElem.disabled = false;
               testButtonElem.disabled = false;
+              clearButtonElem.disabled = false;
               vscode.postMessage({ command: 'setModel', modelName: modelName });
             }
           });
@@ -320,10 +306,6 @@ export default function getWebviewContent(): string {
               const statusElem = document.getElementById("status");
               const clearButtonElem = document.getElementById("clearButton");
               
-              if (!askButtonElem) console.log('ERROR: askButton element not found in chatCompletion handler!');
-              if (!statusElem) console.log('ERROR: status element not found in chatCompletion handler!');
-              if (!clearButtonElem) console.log('ERROR: clearButton element not found in chatCompletion handler!');
-              
               if (askButtonElem) askButtonElem.textContent = "Ask DeepSeek";
               if (statusElem) statusElem.textContent = "Response completed!";
               if (askButtonElem) askButtonElem.disabled = false;
@@ -370,26 +352,23 @@ export default function getWebviewContent(): string {
           
           // Trigger model check on initial load
           console.log('Starting initial model check');
-          const modelSelector = document.getElementById("model-selector") as HTMLSelectElement;
+          const modelSelector = document.getElementById("model-selector");
           if (modelSelector) {
             console.log('Model selector found');
             const modelName = modelSelector.value;
-            console.log("Initial selected model");
+            console.log("Initial selected model: " + modelName);
             
             (async () => {
               console.log('Starting async initial model check');
               try {
                 console.log('Calling modelInstalled on page load');
                 const isInstalled = await modelInstalled(modelName);
-                console.log("Initial model check result");
+                console.log("Initial model check result: " + isInstalled);
                 
                 const statusElem = document.getElementById("status");
                 const askButtonElem = document.getElementById("askButton");
                 const testButtonElem = document.getElementById("testButton");
-                
-                if (!statusElem) console.log('ERROR: status element not found on initial check!');
-                if (!askButtonElem) console.log('ERROR: askButton element not found on initial check!');
-                if (!testButtonElem) console.log('ERROR: testButton element not found on initial check!');
+                const clearButtonElem = document.getElementById("clearButton");
                 
                 if (!isInstalled) {
                   console.log('Initial model not installed, updating UI');
@@ -399,6 +378,7 @@ export default function getWebviewContent(): string {
                   }
                   if (askButtonElem) askButtonElem.disabled = true;
                   if (testButtonElem) testButtonElem.disabled = true;
+                  if (clearButtonElem) clearButtonElem.disabled = true;
                 } else {
                   console.log('Initial model is installed, updating UI');
                   if (statusElem) {
@@ -407,8 +387,8 @@ export default function getWebviewContent(): string {
                   }
                   if (askButtonElem) askButtonElem.disabled = false;
                   if (testButtonElem) testButtonElem.disabled = false;
+                  if (clearButtonElem) clearButtonElem.disabled = false;
                   vscode.postMessage({ command: 'setModel', modelName: modelName });
-                  console.log('Sent initial setModel message to extension');
                 }
               } catch (error) {
                 console.error('Error during initial model check:', error);

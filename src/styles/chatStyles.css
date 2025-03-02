@@ -26,6 +26,7 @@ body {
 
 .header {
   flex: 0 0 auto;
+  flex-wrap: wrap;
   padding-bottom: 8px;
   border-bottom: 1px solid var(--vscode-panel-border, #ccc);
   display: flex;

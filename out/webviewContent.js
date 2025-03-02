@@ -107,19 +107,15 @@ function getWebviewContent() {
               const messageHandler = (event) => {
                 const { command, isInstalled } = event.data;
                 if (command === 'modelInstalledResult') {
-                  console.log("Got modelInstalledResult");
                   window.removeEventListener('message', messageHandler);
                   resolve(isInstalled);
                 }
               };
               
               window.addEventListener('message', messageHandler);
-              console.log('Added message event listener');
               
               // Set a timeout in case we don't get a response
-              console.log('Setting timeout for model check');
               setTimeout(() => {
-                console.log('Timeout reached for model check, resolving as false');
                 window.removeEventListener('message', messageHandler);
                 resolve(false);
               }, 5000);
@@ -217,18 +213,14 @@ function getWebviewContent() {
 
           // Handle model-selector. Check whether the selected DeepSeek model is installed. If not, give a warning.
           document.getElementById("model-selector").addEventListener("change", async (event) => {
-            console.log('Model selector change event triggered');
             if(!event || !event.target) {
-              console.log('Event or target is null, returning');
               return;
             }
             
             const select = event.target;
             const modelName = select.value;
-            console.log("Selected model");
             
             const isInstalled = await modelInstalled(modelName);
-            console.log("Model installed check result");
             const statusElem = document.getElementById("status");
             const askButtonElem = document.getElementById("askButton");
             const testButtonElem = document.getElementById("testButton");
@@ -312,13 +304,10 @@ function getWebviewContent() {
           });
 
           // Listen for messages from the extension
-          console.log("Setting up main message event listener");
           window.addEventListener("message", event => {
-            // console.log main message event received
             const { command, text, messages, isInstalled } = event.data;
             
             if (command === "chatResponse") {
-              console.log('Received chatResponse command');
               // Update the assistant's response as it's streaming in
               if(text){
                 updateCurrentStreamingMessage(text);
@@ -328,12 +317,9 @@ function getWebviewContent() {
               const statusElem = document.getElementById("status");
               if (statusElem) {
                 statusElem.textContent = "Receiving response...";
-              } else {
-                console.log('ERROR: status element not found when updating for chatResponse!');
               }
             }
             else if (command === "chatCompletion") {
-              console.log('Received chatCompletion command');
               const askButtonElem = document.getElementById("askButton");
               const statusElem = document.getElementById("status");
               const clearButtonElem = document.getElementById("clearButton");
@@ -355,22 +341,16 @@ function getWebviewContent() {
               }, 3000);
             }
             else if (command === "loadConversation") {
-              console.log('Received loadConversation command');
               // Load an existing conversation
               if (messages && messages.length > 0) {
                 renderConversation(messages);
               }
             }
             else if (command === "clearConversation") {
-              console.log('Received clearConversation command');
               clearChat();
             }
             else if (command === "modelInstalledResult") {
-              console.log("Received modelInstalledResult in main listener");
               // This is handled in the modelInstalled function's dedicated listener
-            }
-            else {
-              console.log("Received unknown command");
             }
           });
 
@@ -383,19 +363,13 @@ function getWebviewContent() {
           }
           
           // Trigger model check on initial load
-          console.log('Starting initial model check');
           const modelSelector = document.getElementById("model-selector");
           if (modelSelector) {
-            console.log('Model selector found');
             const modelName = modelSelector.value;
-            console.log("Initial selected model: " + modelName);
             
             (async () => {
-              console.log('Starting async initial model check');
               try {
-                console.log('Calling modelInstalled on page load');
                 const isInstalled = await modelInstalled(modelName);
-                console.log("Initial model check result: " + isInstalled);
                 
                 const statusElem = document.getElementById("status");
                 const askButtonElem = document.getElementById("askButton");
@@ -403,7 +377,6 @@ function getWebviewContent() {
                 const clearButtonElem = document.getElementById("clearButton");
                 
                 if (!isInstalled) {
-                  console.log('Initial model not installed, updating UI');
                   if (statusElem) {
                     statusElem.textContent = "Error: selected model not installed. Please install the current model with Ollama or select a different model";
                     statusElem.style.color = "red";
@@ -412,7 +385,6 @@ function getWebviewContent() {
                   if (testButtonElem) testButtonElem.disabled = true;
                   if (clearButtonElem) clearButtonElem.disabled = true;
                 } else {
-                  console.log('Initial model is installed, updating UI');
                   if (statusElem) {
                     statusElem.textContent = "Ready for prompting";
                     statusElem.style.color = "";

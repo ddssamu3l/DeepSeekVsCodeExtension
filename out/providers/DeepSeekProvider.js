@@ -51,7 +51,6 @@ class DeepSeekViewProvider {
     // Called by VS Code when the view should be displayed
     resolveWebviewView(webviewView, _context, _token) {
         try {
-            console.log("DeepSeek Provider: resolveWebviewView called");
             // Store the webview instance
             this._view = webviewView;
             // Configure webview settings
@@ -61,10 +60,8 @@ class DeepSeekViewProvider {
             };
             // Set the webview content
             this._updateWebview();
-            console.log("DeepSeek Provider: Webview content updated");
             // Handle messages from the webview
             this._view.webview.onDidReceiveMessage(async (message) => {
-                console.log("DeepSeek Provider: Received message from webview:", message.command);
                 if (message.command === "userPrompt") {
                     await this._handleUserPrompt(message.text);
                 }
@@ -76,12 +73,11 @@ class DeepSeekViewProvider {
                     console.log("DEBUG from webview:", message.text);
                 }
                 else if (message.command === "checkModelInstalled") {
-                    console.log("DeepSeek Provider: Checking if model is installed:", message.modelName);
                     await this._checkModelInstalled(message.modelName);
                 }
                 else if (message.command === "setModel") {
+                    console.log("DeepSeek model set to: " + message.modelName);
                     this._currentModel = message.modelName;
-                    console.log(`DeepSeek Provider: Model set to: ${this._currentModel}`);
                 }
             });
             // set the system prompt to prepare the DeepSeek agent
@@ -99,23 +95,15 @@ class DeepSeekViewProvider {
             return;
         }
         try {
-            console.log("Generating webview content");
             const htmlContent = (0, webviewContent_1.default)();
-            console.log("Setting webview HTML content");
             this._view.webview.html = htmlContent;
             // After a short delay, send conversation history if available
-            console.log("Setting timeout to load conversation history");
             setTimeout(() => {
-                console.log("Timeout fired for conversation history loading");
                 if (this._view && this._conversationHistory.length > 0) {
-                    console.log("Sending loadConversation message to webview");
                     this._view.webview.postMessage({
                         command: "loadConversation",
                         messages: this._conversationHistory
                     });
-                }
-                else {
-                    console.log("No conversation history to load or view is undefined");
                 }
             }, 300);
         }
@@ -131,19 +119,15 @@ class DeepSeekViewProvider {
     }
     // Check if a model is installed with Ollama
     async _checkModelInstalled(modelName) {
-        console.log("_checkModelInstalled method started with model:", modelName);
         if (!this._view) {
             console.error("Cannot check model - view is undefined");
             return;
         }
         try {
-            console.log(`Checking if model ${modelName} is installed with Ollama API...`);
             try {
                 // Try to get the model info - if it succeeds, the model is installed
                 await ollama_1.default.show({ model: modelName });
-                console.log(`Model ${modelName} is installed successfully`);
                 // If successful, the model is installed
-                console.log("Sending modelInstalledResult: true to webview");
                 this._view.webview.postMessage({
                     command: "modelInstalledResult",
                     isInstalled: true
@@ -152,8 +136,7 @@ class DeepSeekViewProvider {
             }
             catch (error) {
                 // If there's an error, the model is not installed
-                console.log(`Model ${modelName} is not installed:`, error);
-                console.log("Sending modelInstalledResult: false to webview");
+                console.log(`Model ${modelName} is not installed`);
                 this._view.webview.postMessage({
                     command: "modelInstalledResult",
                     isInstalled: false
@@ -163,7 +146,6 @@ class DeepSeekViewProvider {
         }
         catch (error) {
             console.error("Error checking model status:", error);
-            console.log("Sending modelInstalledResult: false to webview due to error");
             this._view.webview.postMessage({
                 command: "modelInstalledResult",
                 isInstalled: false

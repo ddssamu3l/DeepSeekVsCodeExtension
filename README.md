@@ -22,7 +22,7 @@ Select from one of the available models
 - 70b  (43GB)
 - 671b (404GB)
 
-### Example (14b version
+### Example (14b version)
 ```
 ollama pull deepseek-r1:14b
 ```
@@ -36,6 +36,7 @@ After opening the extension's project directory, start debugging with:
 - Mac: Fn + F5
 
 After that, the extension should be **running** in the new debug window!
+
 
 ## Install the extension to your VsCode
 To install the extension, run this command from the project directory's terminal:

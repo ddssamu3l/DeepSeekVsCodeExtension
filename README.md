@@ -36,6 +36,7 @@ After opening the extension's project directory, start debugging with:
 - Mac: Fn + F5
 
 After that, the extension should be **running** in the new debug window!
+**NOTE:** After you open a debug window, you must open a file in order for the extension to appear in the activity sidebar.
 
 
 ## Install the extension to your VsCode

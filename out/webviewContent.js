@@ -43,6 +43,7 @@ function getWebviewContent() {
     // Read the CSS file
     const cssPath = path.join(__dirname, '..', 'src', 'styles', 'chatStyles.css');
     const cssContent = fs.readFileSync(cssPath, 'utf8');
+    const welcomeMessage = "Welcome to DeepSeek R1! Enter a prompt to start chatting.";
     return /*html*/ `
     <!DOCTYPE html>
     <html lang="en">
@@ -71,7 +72,7 @@ function getWebviewContent() {
         </div>
         
         <div class="chat-container" id="chatContainer">
-          <div class="welcome-message">Welcome to DeepSeek R1! Enter a prompt to start chatting.</div>
+          <div class="welcome-message">${welcomeMessage}</div>
           <div id="loading"><div class="spinner"></div></div>
         </div>
         
@@ -86,6 +87,7 @@ function getWebviewContent() {
       </div>
 
       <script>
+        /**************************** INITIAL SETUP AND CHECKS *************************************/
         // Acquire VSCode API
         const vscode =  acquireVsCodeApi();
         console.log('VSCode API acquired');
@@ -93,6 +95,23 @@ function getWebviewContent() {
         // Inject markdown string to HTML helper function
         const markdownToHTML = ${markdownToHTMLFunctionString};
 
+        // Ready state
+        const initialStatusElem = document.getElementById("status");
+        if (initialStatusElem) {
+          initialStatusElem.textContent = "Ready for prompting";
+        } else {
+          console.log("ERROR: status element not found during initial ready state!");
+        }
+        
+        // Trigger model check on initial load
+        const modelSelector = document.getElementById("model-selector");
+        if (modelSelector) {
+          const modelName = modelSelector.value;
+          checkSelectedModel(modelName);
+        }
+        /**************************** END OF INITIAL SETUP AND CHECKS *******************************/
+
+        /**************************** JS FUNCTIONS *************************************/
         // Check if a DeepSeek model is installed in Ollama
         async function modelInstalled(modelName) {          
           try {
@@ -123,6 +142,38 @@ function getWebviewContent() {
           } catch (error) {
             console.error('Error checking if model is installed:', error);
             return false;
+          }
+        }
+
+        async function checkSelectedModel(modelName){
+          try {
+            const isInstalled = await modelInstalled(modelName);
+            
+            const statusElem = document.getElementById("status");
+            const askButtonElem = document.getElementById("askButton");
+            const testButtonElem = document.getElementById("testButton");
+            const clearButtonElem = document.getElementById("clearButton");
+            
+            if (!isInstalled) {
+              if (statusElem) {
+                statusElem.textContent = 'Error: selected model is not installed on your machine. Please install the current model with Ollama by running: "ollama pull ' + modelName + '" or select a different model';
+                statusElem.style.color = "red";
+              }
+              if (askButtonElem) askButtonElem.disabled = true;
+              if (testButtonElem) testButtonElem.disabled = true;
+              if (clearButtonElem) clearButtonElem.disabled = true;
+            } else {
+              if (statusElem) {
+                statusElem.textContent = "Ready for prompting";
+                statusElem.style.color = "";
+              }
+              if (askButtonElem) askButtonElem.disabled = false;
+              if (testButtonElem) testButtonElem.disabled = false;
+              if (clearButtonElem) clearButtonElem.disabled = false;
+              vscode.postMessage({ command: 'setModel', modelName: modelName });
+            }
+          } catch (error) {
+            console.error('Error during initial model check:', error);
           }
         }
 
@@ -171,7 +222,7 @@ function getWebviewContent() {
         // Clear all messages from the chat
         function clearChat() {
           const chatContainer = document.getElementById('chatContainer');
-          chatContainer.innerHTML = '<div class="welcome-message">Welcome to DeepSeek R1! Enter a prompt to start chatting.</div>';
+          chatContainer.innerHTML = '<div class="welcome-message">' + welcomeMessage + '</div>';
         }
         
         // Update the current streaming assistant message (identified by thinking indicator)
@@ -203,7 +254,9 @@ function getWebviewContent() {
             });
           }
         }
+        /**************************** END OF JS FUNCTIONS *************************************/
         
+        /**************************** EVENT LISTENERS *************************************/
         // Call once on load and whenever window resizes
         window.addEventListener('resize', adjustHeight);
         
@@ -218,28 +271,11 @@ function getWebviewContent() {
             }
             
             const select = event.target;
+            if(!select) return;
             const modelName = select.value;
+            if(!modelName) return;
             
-            const isInstalled = await modelInstalled(modelName);
-            const statusElem = document.getElementById("status");
-            const askButtonElem = document.getElementById("askButton");
-            const testButtonElem = document.getElementById("testButton");
-            const clearButtonElem = document.getElementById("clearButton");
-
-            if (!isInstalled) {
-              statusElem.textContent = 'Error: selected model is not installed on your machine. Please install the current model with Ollama by running: "ollama pull ' + modelName + '" or select a different model';
-              statusElem.style.color = "red";
-              askButtonElem.disabled = true;
-              testButtonElem.disabled = true;
-              clearButtonElem.disabled = true;
-            } else {
-              statusElem.textContent = "Ready for prompting";
-              statusElem.style.color = "";
-              askButtonElem.disabled = false;
-              testButtonElem.disabled = false;
-              clearButtonElem.disabled = false;
-              vscode.postMessage({ command: 'setModel', modelName: modelName });
-            }
+            checkSelectedModel(modelName);
           });
 
           // Handle Ask button click
@@ -353,52 +389,7 @@ function getWebviewContent() {
               // This is handled in the modelInstalled function's dedicated listener
             }
           });
-
-          // Ready state
-          const initialStatusElem = document.getElementById("status");
-          if (initialStatusElem) {
-            initialStatusElem.textContent = "Ready for prompting";
-          } else {
-            console.log("ERROR: status element not found during initial ready state!");
-          }
-          
-          // Trigger model check on initial load
-          const modelSelector = document.getElementById("model-selector");
-          if (modelSelector) {
-            const modelName = modelSelector.value;
-            
-            (async () => {
-              try {
-                const isInstalled = await modelInstalled(modelName);
-                
-                const statusElem = document.getElementById("status");
-                const askButtonElem = document.getElementById("askButton");
-                const testButtonElem = document.getElementById("testButton");
-                const clearButtonElem = document.getElementById("clearButton");
-                
-                if (!isInstalled) {
-                  if (statusElem) {
-                    statusElem.textContent = "Error: selected model not installed. Please install the current model with Ollama or select a different model";
-                    statusElem.style.color = "red";
-                  }
-                  if (askButtonElem) askButtonElem.disabled = true;
-                  if (testButtonElem) testButtonElem.disabled = true;
-                  if (clearButtonElem) clearButtonElem.disabled = true;
-                } else {
-                  if (statusElem) {
-                    statusElem.textContent = "Ready for prompting";
-                    statusElem.style.color = "";
-                  }
-                  if (askButtonElem) askButtonElem.disabled = false;
-                  if (testButtonElem) testButtonElem.disabled = false;
-                  if (clearButtonElem) clearButtonElem.disabled = false;
-                  vscode.postMessage({ command: 'setModel', modelName: modelName });
-                }
-              } catch (error) {
-                console.error('Error during initial model check:', error);
-              }
-            })();
-          }
+          /**************************** END OF EVENT LISTENERS *************************************/
         } catch (err) {
           console.error('Fatal error:', err);
           document.body.innerHTML = \`

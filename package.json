@@ -35,7 +35,7 @@
         {
           "type": "webview",
           "id": "deepseek-ext.view",
-          "name": "DeepSeek Chat",
+          "name": "DeepSeek Chat By DD",
           "when": "workbenchState == 'workspace' || workbenchState == 'folder'"
         }
       ]

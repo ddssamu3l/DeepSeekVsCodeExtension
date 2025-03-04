@@ -29,15 +29,15 @@ export function markdownToHTML(markdown: string): string {
   // Convert blockquotes (lines starting with >)
   html = html.replace(/^\> (.*)$/gim, '<blockquote>$1</blockquote>');
 
-  // Convert unordered list items (lines starting with - or *)
-  html = html.replace(/^\s*[-*]\s+(.*)$/gim, '<li>$1</li>');
-  // Wrap consecutive <li> elements in <ul> tags
-  html = html.replace(/(<li>[\s\S]+?<\/li>)/gim, '<ul>$1</ul>');
+  // // Convert unordered list items (lines starting with - or *)
+  // html = html.replace(/^\s*[-*]\s+(.*)$/gim, '<li>$1</li>');
+  // // Wrap consecutive <li> elements in <ul> tags
+  // html = html.replace(/(<li>[\s\S]+?<\/li>)/gim, '<ul>$1</ul>');
 
-  // Convert ordered list items (lines starting with a number and a dot)
-  html = html.replace(/^\s*\d+\.\s+(.*)$/gim, '<li>$1</li>');
-  // Wrap consecutive <li> elements in <ol> tags
-  html = html.replace(/(<li>[\s\S]+?<\/li>)/gim, '<ol>$1</ol>');
+  // // Convert ordered list items (lines starting with a number and a dot)
+  // html = html.replace(/^\s*\d+\.\s+(.*)$/gim, '<li>$1</li>');
+  // // Wrap consecutive <li> elements in <ol> tags
+  // html = html.replace(/(<li>[\s\S]+?<\/li>)/gim, '<ol>$1</ol>');
 
   // Convert remaining newlines to <br> for simple line breaks.
   html = html.replace(/\n/g, '<br>');

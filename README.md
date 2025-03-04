@@ -22,9 +22,9 @@ Select from one of the available models
 - 70b  (43GB)
 - 671b (404GB)
 
-### Example (14b version)
+### Example (default model: 8b)
 ```
-ollama pull deepseek-r1:14b
+ollama pull deepseek-r1:1bb
 ```
 
 

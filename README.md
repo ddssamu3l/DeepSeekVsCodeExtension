@@ -24,7 +24,7 @@ Select from one of the available models
 
 ### Example (default model: 8b)
 ```
-ollama pull deepseek-r1:1bb
+ollama pull deepseek-r1:8b
 ```
 
 

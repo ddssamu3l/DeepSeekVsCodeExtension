@@ -17,14 +17,14 @@ Select from one of the available models
 - 1.5b (1.1GB)
 - 7b   (4.7GB)
 - 8b   (4.9GB)
-- 14b  (9.0GB)
+- 14b  (9.0GB - DEFAULT)
 - 32b  (20GB)
 - 70b  (43GB)
 - 671b (404GB)
 
-### Example (default model: 8b)
+### Example (default model: 14b)
 ```
-ollama pull deepseek-r1:8b
+ollama pull deepseek-r1:14b
 ```
 
 

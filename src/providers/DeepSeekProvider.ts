@@ -13,7 +13,7 @@ interface Message {
 export default class DeepSeekViewProvider implements vscode.WebviewViewProvider {
   private _view?: vscode.WebviewView;
   private _conversationHistory: Message[] = [];
-  private _currentModel: string = "deepseek-r1:8b"; // default model
+  private _currentModel: string = "deepseek-r1:14b"; // default model
 
   constructor(private readonly _extensionUri: vscode.Uri) {}
 

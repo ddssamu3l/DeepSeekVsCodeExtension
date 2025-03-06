@@ -44,7 +44,7 @@ class DeepSeekViewProvider {
     _extensionUri;
     _view;
     _conversationHistory = [];
-    _currentModel = "deepseek-r1:8b"; // default model
+    _currentModel = "deepseek-r1:14b"; // default model
     constructor(_extensionUri) {
         this._extensionUri = _extensionUri;
     }

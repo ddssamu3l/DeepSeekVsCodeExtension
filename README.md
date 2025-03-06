@@ -13,7 +13,7 @@ curl -fsSL https://ollama.com/install.sh | sh
 ## Next Steps
 After installing Ollama, be sure to install at least 1 model before running the extension.
 
-Select from one of the available models
+Select from one of the available models (brackets indicate RAM usage)
 - 1.5b (1.1GB)
 - 7b   (4.7GB)
 - 8b   (4.9GB)

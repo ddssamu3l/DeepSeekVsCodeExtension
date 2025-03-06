@@ -44,7 +44,7 @@ class DeepSeekViewProvider {
     _extensionUri;
     _view;
     _conversationHistory = [];
-    _currentModel = "deepseek-r1:8b"; // default model
+    _currentModel = "deepseek-r1:14b"; // default model
     constructor(_extensionUri) {
         this._extensionUri = _extensionUri;
     }
@@ -81,7 +81,7 @@ class DeepSeekViewProvider {
                 }
             });
             // set the system prompt to prepare the DeepSeek agent
-            this._conversationHistory.push({ role: "system", content: "You are an agent that exists in a VsCode extension where there is a chat interface that the user can communicate to you with." });
+            this._conversationHistory.push({ role: "system", content: "You are an agent that exists in a VsCode extension where there is a chat interface that the user can communicate to you with. If you get the message: 'Test message: Hello from the webview!', just respond by greeting the user." });
         }
         catch (error) {
             console.error("Error initializing webview:", error);

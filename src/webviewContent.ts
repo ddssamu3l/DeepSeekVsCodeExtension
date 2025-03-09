@@ -11,8 +11,6 @@ export default function getWebviewContent(): string {
   const cssPath = path.join(__dirname, '..', 'src', 'styles', 'chatStyles.css');
   const cssContent = fs.readFileSync(cssPath, 'utf8');
 
-  const welcomeMessage = "Welcome to DeepSeek R1! Enter a prompt to start chatting.";
-
   return /*html*/ `
     <!DOCTYPE html>
     <html lang="en">
@@ -36,12 +34,13 @@ export default function getWebviewContent(): string {
             <option value="deepseek-r1:32b">DeepSeek R1 32b (20GB)</option>
             <option value="deepseek-r1:70b">DeepSeek R1 70b (43GB)</option>
             <option value="deepseek-r1:671b">DeepSeek R1 671b (404GB)</option>
+            <option value="qwq">QwQ (20GB)</option>
           </select>
           <button id="clearButton">Clear Chat</button>
         </div>
         
         <div class="chat-container" id="chatContainer">
-          <div class="welcome-message">${welcomeMessage}</div>
+          <div class="welcome-message">Welcome to DeepSeek R1! Enter a prompt to start chatting.</div>
           <div id="loading"><div class="spinner"></div></div>
         </div>
         
@@ -50,13 +49,14 @@ export default function getWebviewContent(): string {
           <textarea id="userPrompt" placeholder="Ask DeepSeek anything..."></textarea>
           <div class="button-row">
             <button id="askButton">Ask DeepSeek</button>
-            <button id="testButton">Test Connection</button>
           </div>
         </div>
       </div>
 
       <script>
         /**************************** INITIAL SETUP AND CHECKS *************************************/
+        const welcomeMessage = "Welcome to DeepSeek R1! Enter a prompt to start chatting.";
+
         // Acquire VSCode API
         const vscode =  acquireVsCodeApi();
         console.log('VSCode API acquired');
@@ -120,7 +120,6 @@ export default function getWebviewContent(): string {
             
             const statusElem = document.getElementById("status");
             const askButtonElem = document.getElementById("askButton");
-            const testButtonElem = document.getElementById("testButton");
             const clearButtonElem = document.getElementById("clearButton");
             
             if (!isInstalled) {
@@ -129,7 +128,6 @@ export default function getWebviewContent(): string {
                 statusElem.style.color = "red";
               }
               if (askButtonElem) askButtonElem.disabled = true;
-              if (testButtonElem) testButtonElem.disabled = true;
               if (clearButtonElem) clearButtonElem.disabled = true;
             } else {
               if (statusElem) {
@@ -137,7 +135,6 @@ export default function getWebviewContent(): string {
                 statusElem.style.color = "";
               }
               if (askButtonElem) askButtonElem.disabled = false;
-              if (testButtonElem) testButtonElem.disabled = false;
               if (clearButtonElem) clearButtonElem.disabled = false;
               vscode.postMessage({ command: 'setModel', modelName: modelName });
             }
@@ -163,21 +160,23 @@ export default function getWebviewContent(): string {
           const chatContainer = document.getElementById('chatContainer');
           
           // Clear welcome message if it exists
-          const welcomeMessage = document.querySelector('.welcome-message');
-          if (welcomeMessage) {
-            welcomeMessage.remove();
+          const welcomeMessageDiv = document.querySelector('.welcome-message');
+          if (welcomeMessageDiv) {
+            welcomeMessageDiv.remove();
           }
           
           // Create message element
           const messageDiv = document.createElement('div');
           messageDiv.className = role === 'user' ? 'chat-message user-message' : 'chat-message assistant-message';
           
-          // For assistant messages, add an ID so we can find it later for updates
+          // User message can have a date id assigned immediately since they will only be added once
+          // Assistant messages are constantly streamed so they will get an id when the "chatCompletion" command is activated
           if (role === 'assistant') {
-            messageDiv.id = 'assistant-msg-' + Date.now();
+            messageDiv.id = 'current-streaming-message';
             messageDiv.innerHTML = markdownToHTML(content);
           }else{
             messageDiv.textContent = content;
+            messageDiv.id = "user-message-" + Date.now();
           }
 
           chatContainer.appendChild(messageDiv);
@@ -195,17 +194,18 @@ export default function getWebviewContent(): string {
         }
         
         // Update the current streaming assistant message (identified by thinking indicator)
+        // 'content' is the markdown text returned by the AI. We will convert it to HTML text and render it as HTML
         function updateCurrentStreamingMessage(content) {
           // Look for the current streaming message
-          const streamingMsg = document.getElementById('current-streaming-msg');
+          const streamingMsg = document.getElementById('current-streaming-message');
           if (streamingMsg) {
             streamingMsg.innerHTML = markdownToHTML(content);
           } else {
-            // If somehow neither exists, just add a new message
-            const messageDiv = addMessage('assistant', content);
-            messageDiv.id = 'current-streaming-msg';
+            // If somehow it doesn't exist, just add a new message
+            console.log("updateCurrentStreamingMessage() could not find current-streaming-message div. Creating a new current-streaming-message div");
+            var messageDiv = addMessage('assistant', content);
+            messageDiv.id = 'current-streaming-message';
           }
-          
           
           // Scroll to bottom
           const chatContainer = document.getElementById('chatContainer');
@@ -257,9 +257,8 @@ export default function getWebviewContent(): string {
             
             // Add user message to the chat
             addMessage('user', userPrompt);
-            
-            // Add thinking indicator
-            addMessage('assistant', '');
+            // Add a new streaming div for the ai to stream its response in
+            addMessage('assistant', 'Processing your request with DeepSeek R1...');
             
             document.getElementById("status").textContent = "Sending request to DeepSeek...";
             document.getElementById("askButton").textContent = "Generating...";
@@ -292,22 +291,6 @@ export default function getWebviewContent(): string {
             }
           });
 
-          // Handle Test button click
-          document.getElementById("testButton").addEventListener("click", () => {
-            document.getElementById("status").textContent = "Testing connection...";
-            addMessage('user', 'Test message: Hello from the webview!');
-            addMessage('assistant', '');
-            
-            try {
-              vscode.postMessage({ 
-                command: 'userPrompt', 
-                text: 'Test message: Hello from the webview!'
-              });
-            } catch (err) {
-              document.getElementById("status").textContent = "Test failed: " + err.message;
-            }
-          });
-
           // Listen for messages from the extension
           window.addEventListener("message", event => {
             const { command, text, messages, isInstalled } = event.data;
@@ -325,6 +308,11 @@ export default function getWebviewContent(): string {
               }
             }
             else if (command === "chatCompletion") {
+              // set the current streaming div as a regular completed message div
+              var currentStreamingMessage = document.getElementById("current-streaming-message");
+              if(currentStreamingMessage) currentStreamingMessage.id = 'assistant-message-' + Date.now();
+              else console.error("Failed to find current streaming div");
+
               const askButtonElem = document.getElementById("askButton");
               const statusElem = document.getElementById("status");
               const clearButtonElem = document.getElementById("clearButton");
@@ -332,12 +320,7 @@ export default function getWebviewContent(): string {
               if (askButtonElem) askButtonElem.textContent = "Ask DeepSeek";
               if (statusElem) statusElem.textContent = "Response completed!";
               if (askButtonElem) askButtonElem.disabled = false;
-              if (clearButtonElem) clearButtonElem.disabled = false;
-
-              // If messages are provided, render them
-              if (messages) {
-                renderConversation(messages);
-              }
+              if (clearButtonElem) clearButtonElem.disabled = false;             
 
               // Reset the status after 3 seconds
               setTimeout(() => {
@@ -350,12 +333,6 @@ export default function getWebviewContent(): string {
               if (messages && messages.length > 0) {
                 renderConversation(messages);
               }
-            }
-            else if (command === "clearConversation") {
-              clearChat();
-            }
-            else if (command === "modelInstalledResult") {
-              // This is handled in the modelInstalled function's dedicated listener
             }
           });
           /**************************** END OF EVENT LISTENERS *************************************/

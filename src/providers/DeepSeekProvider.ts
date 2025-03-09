@@ -54,7 +54,7 @@ export default class DeepSeekViewProvider implements vscode.WebviewViewProvider 
       });
 
       // set the system prompt to prepare the DeepSeek agent
-      this._conversationHistory.push({ role: "system", content: "You are an agent that exists in a VsCode extension where there is a chat interface that the user can communicate to you with. If you get the message: 'Test message: Hello from the webview!', just respond by greeting the user."});
+      this._conversationHistory.push({ role: "system", content: "You are an agent that exists in a VsCode extension where there is a chat interface that the user can communicate to you with."});
     } catch (error) {
       console.error("Error initializing webview:", error);
       vscode.window.showErrorMessage(
@@ -99,6 +99,7 @@ export default class DeepSeekViewProvider implements vscode.WebviewViewProvider 
   private _clearConversation() {
     // clear all messages except for the system prompt
     this._conversationHistory.length = 1;
+    console.log("Chat history cleared");
   }
   
   // Check if a model is installed with Ollama

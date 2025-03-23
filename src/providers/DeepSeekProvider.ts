@@ -144,6 +144,23 @@ export default class DeepSeekViewProvider implements vscode.WebviewViewProvider 
     }
   }
 
+  private _getSelectedText(): string{
+    const editor = vscode.window.activeTextEditor;
+    if (editor) {
+      const selection = editor.selection;
+
+      if (selection.isEmpty) {
+        console.log("Cursor only — no text is selected.");
+        return '';
+      } else {
+        const selectedText = editor.document.getText(selection);
+        console.log("Text is selected:", selectedText);
+        return "\n Selected text:\n" + selectedText;
+      }
+    }
+    return'';
+  }
+
   // Handle user prompts sent from the webview
   private async _handleUserPrompt(userPrompt: string) {
     if (!this._view) {
@@ -152,11 +169,13 @@ export default class DeepSeekViewProvider implements vscode.WebviewViewProvider 
     }
 
     let responseText = "";
+    const selectedText = this._getSelectedText();
+    userPrompt += selectedText;
     console.log("Received user prompt: " + userPrompt);
 
     try {
       // Add user message to conversation history
-      this._conversationHistory.push({ role: "user", content: userPrompt });
+      this._conversationHistory.push({ role: "user", content: userPrompt});
 
       // push a new assistance response to the conversation history, with a placeholder of "" since the resopsne has yet to come in
       this._conversationHistory.push({
@@ -167,7 +186,7 @@ export default class DeepSeekViewProvider implements vscode.WebviewViewProvider 
       // For immediate feedback while Ollama loads
       this._view.webview.postMessage({
         command: "chatResponse",
-        text: "Processing your request with DeepSeek R1...",
+        text: "Processing your request...",
         messages: this._conversationHistory,
       });
 
@@ -181,7 +200,6 @@ export default class DeepSeekViewProvider implements vscode.WebviewViewProvider 
         });
 
         // Reset the response text for the current assistant message
-        responseText = "";
         const newMsgIndex = this._conversationHistory.length - 1;
 
         // Stream each chunk if the new resonse to the webview

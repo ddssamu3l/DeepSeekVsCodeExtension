@@ -154,6 +154,22 @@ class DeepSeekViewProvider {
             return false;
         }
     }
+    _getSelectedText() {
+        const editor = vscode.window.activeTextEditor;
+        if (editor) {
+            const selection = editor.selection;
+            if (selection.isEmpty) {
+                console.log("Cursor only — no text is selected.");
+                return '';
+            }
+            else {
+                const selectedText = editor.document.getText(selection);
+                console.log("Text is selected:", selectedText);
+                return "\n Selected text:\n" + selectedText;
+            }
+        }
+        return '';
+    }
     // Handle user prompts sent from the webview
     async _handleUserPrompt(userPrompt) {
         if (!this._view) {
@@ -161,6 +177,8 @@ class DeepSeekViewProvider {
             return;
         }
         let responseText = "";
+        const selectedText = this._getSelectedText();
+        userPrompt += selectedText;
         console.log("Received user prompt: " + userPrompt);
         try {
             // Add user message to conversation history
@@ -173,7 +191,7 @@ class DeepSeekViewProvider {
             // For immediate feedback while Ollama loads
             this._view.webview.postMessage({
                 command: "chatResponse",
-                text: "Processing your request with DeepSeek R1...",
+                text: "Processing your request...",
                 messages: this._conversationHistory,
             });
             try {
@@ -185,7 +203,6 @@ class DeepSeekViewProvider {
                     stream: true,
                 });
                 // Reset the response text for the current assistant message
-                responseText = "";
                 const newMsgIndex = this._conversationHistory.length - 1;
                 // Stream each chunk if the new resonse to the webview
                 for await (const part of streamResponse) {

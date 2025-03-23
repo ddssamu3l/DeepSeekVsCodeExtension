@@ -20,7 +20,7 @@ export default class DeepSeekViewProvider implements vscode.WebviewViewProvider 
     this._conversationHistory = [
       {
         role: "system",
-        content: "You are an AI Coding agent. You will help your user with code related tasks. If the user asks you a question that isn't code related, tell the user that you are just a coding AI assistant. The user's messages may include some text that is currently selected by the user's mouse. If meaningful information can be extracted from the user's selected text and helps answer the user's prompt, then use it to help you answer the user's prompt. If no meaningful information can be extracted from the user selected text (typo or just random text) or the selected text is not related to the user's prompt, you may safely ignore the user's selected text and focus on answering the user's prompt. You might also be provided with the text contents of the file that the user is currently looking at, which you may use to give yourself more context and help you answer the user's prompt.",
+        content: "You are an AI Coding agent. You will help your user with code related tasks. If the user asks you a question that isn't code related, tell the user that you are just a coding AI assistant. The user's messages may include some text that is currently selected by the user's mouse. If meaningful information can be extracted from the user's selected text and helps answer the user's prompt, then use it to help you answer the user's prompt. If no meaningful information can be extracted from the user selected text (typo or just random text) or the selected text is not related to the user's prompt, you may safely ignore the user's selected text and focus on answering the user's prompt. You might also be provided with the text contents of the file that the user is currently looking at, which you may use to give yourself more context and help you answer the user's prompt. If both the user selected text and the file text are provided, prioritize using the user selected text to answer the prompt and use the file text content if you feel the need to.",
       },
     ];
     this._currentModel = "qwq";
@@ -174,7 +174,7 @@ export default class DeepSeekViewProvider implements vscode.WebviewViewProvider 
         return '';
       } else {
         const selectedText = this._editor.document.getText(selection);
-        return "\n Selected text:\n" + selectedText;
+        return selectedText;
       }
     }
     return'';
@@ -186,17 +186,21 @@ export default class DeepSeekViewProvider implements vscode.WebviewViewProvider 
       console.error("Cannot handle prompt - view is undefined");
       return;
     }
-    // consider the current file opened by the user's VS Code window.
+
+    console.log("Received user prompt: " + userPrompt);
+
+    // Consider the current file opened by the user's VS Code window.
     const fileContent = this._getCurrentFileContent();
     if (fileContent.trim()) {
-      console.log("Current file: " + fileContent);
-      this._conversationHistory[0].content += `\nText content of current file:\n${fileContent}`;
+      userPrompt += `\nText content of current file:\n${fileContent}`;
     }
 
+    // Add the user's selected text as part of the prompt itself to give Ollama more context without tool calling
     let responseText = "";
     const selectedText = this._getSelectedText();
-    userPrompt += selectedText;
-    console.log("Received user prompt: " + userPrompt);
+    if(selectedText.trim()){
+      userPrompt += "\n Selected text:\n" + selectedText;
+    }
 
     try {
       // Add user message to conversation history
@@ -217,7 +221,7 @@ export default class DeepSeekViewProvider implements vscode.WebviewViewProvider 
 
       try {
         // Call Ollama with the full conversation history and selected model
-        console.log(`Calling Ollama API with model ${this._currentModel}`);
+        console.log(`Calling Ollama API with model: ${this._currentModel}`);
         const streamResponse = await ollama.chat({
           model: this._currentModel,
           messages: this._conversationHistory,

@@ -37,6 +37,12 @@ exports.default = getWebviewContent;
 const markdownConverter_1 = require("./utils/markdownConverter");
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
+/**
+ * Generates the HTML content for the DeepSeek extension webview.
+ * This includes the HTML structure, CSS styles, and JavaScript code for the chat interface.
+ * @function getWebviewContent
+ * @returns {string} HTML content for the webview
+ */
 function getWebviewContent() {
     // import the markdownToHTML helper and convert it into a string. We will inject it to a <script> tag later.
     const markdownToHTMLFunctionString = markdownConverter_1.markdownToHTML.toString();

@@ -40,7 +40,14 @@ exports.activate = activate;
 exports.deactivate = deactivate;
 const vscode = __importStar(require("vscode"));
 const DeepSeekProvider_1 = __importDefault(require("./providers/DeepSeekProvider"));
-// This is the main entry point for your extension
+/**
+ * Main entry point for the DeepSeek VS Code extension.
+ * This function is called when the extension is activated.
+ * It sets up the webview provider and registers necessary commands.
+ *
+ * @function activate
+ * @param {vscode.ExtensionContext} context - The context in which the extension runs
+ */
 function activate(context) {
     console.log("DeepSeek Extension: Activation started");
     try {
@@ -48,7 +55,10 @@ function activate(context) {
         const provider = new DeepSeekProvider_1.default(context.extensionUri);
         // Register commands
         const viewType = "deepseek-ext.view";
-        // Command to open the view
+        /**
+         * Command that opens the DeepSeek panel in the VS Code sidebar.
+         * This is registered as 'deepseek-ext.openView' and can be triggered from the command palette.
+         */
         const openViewCommand = vscode.commands.registerCommand('deepseek-ext.openView', async () => {
             try {
                 await vscode.commands.executeCommand('workbench.view.extension.deepseek-ext');
@@ -73,6 +83,11 @@ function activate(context) {
         vscode.window.showErrorMessage(`DeepSeek Extension activation failed: ${error instanceof Error ? error.message : String(error)}`);
     }
 }
-// This method is called when the extension is deactivated
+/**
+ * Cleanup function called when the extension is deactivated.
+ * Currently doesn't need to perform any cleanup actions.
+ *
+ * @function deactivate
+ */
 function deactivate() { }
 //# sourceMappingURL=extension.js.map

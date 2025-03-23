@@ -1,3 +1,9 @@
+/**
+ * Converts Markdown text to HTML.
+ * @function markdownToHTML
+ * @param {string} markdown - The Markdown text to convert
+ * @returns {string} The converted HTML string
+ */
 export function markdownToHTML(markdown: string): string {
   // First, escape HTML special characters to prevent injection issues.
   let html = markdown.replace(/&/g, '&amp;')

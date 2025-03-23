@@ -1,6 +1,12 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.markdownToHTML = markdownToHTML;
+/**
+ * Converts Markdown text to HTML.
+ * @function markdownToHTML
+ * @param {string} markdown - The Markdown text to convert
+ * @returns {string} The converted HTML string
+ */
 function markdownToHTML(markdown) {
     // First, escape HTML special characters to prevent injection issues.
     let html = markdown.replace(/&/g, '&amp;')

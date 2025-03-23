@@ -22,9 +22,9 @@ Select from one of the available models (brackets indicate VRAM usage)
 - 70b  (43GB)
 - 671b (404GB)
 
-### Example (default model: 14b)
+### Example (default model: 8b)
 ```
-ollama pull deepseek-r1:14b
+ollama pull deepseek-r1:8b
 ```
 
 

@@ -1,4 +1,4 @@
-import { markdownToHTML } from "./helpers/markdownConverter";
+import { markdownToHTML } from "./utils/markdownConverter";
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -29,8 +29,8 @@ export default function getWebviewContent(): string {
           <select class="model-selector" name="model-selector" id="model-selector">
             <option value="deepseek-r1:1.5b">DeepSeek R1 1.5b (1.5GB)</option>
             <option value="deepseek-r1:7b">DeepSeek R1 7b (4.7GB)</option>
-            <option value="deepseek-r1:8b">DeepSeek R1 8b (4.9GB)</option>
-            <option value="deepseek-r1:14b" selected>DeepSeek R1 14b (9GB)</option>
+            <option value="deepseek-r1:8b" selected>DeepSeek R1 8b (4.9GB)</option>
+            <option value="deepseek-r1:14b">DeepSeek R1 14b (9GB)</option>
             <option value="deepseek-r1:32b">DeepSeek R1 32b (20GB)</option>
             <option value="deepseek-r1:70b">DeepSeek R1 70b (43GB)</option>
             <option value="deepseek-r1:671b">DeepSeek R1 671b (404GB)</option>
@@ -278,6 +278,7 @@ export default function getWebviewContent(): string {
             clearChat();
             vscode.postMessage({ command: 'clearConversation' });
             document.getElementById("status").textContent = "Conversation cleared";
+            document.getElementById("askButton").textContent = "Ask DeepSeek";
             setTimeout(() => {
               document.getElementById("status").textContent = "Ready for prompting";
             }, 3000);

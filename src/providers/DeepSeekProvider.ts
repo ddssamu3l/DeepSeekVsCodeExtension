@@ -20,10 +20,10 @@ export default class DeepSeekViewProvider implements vscode.WebviewViewProvider 
     this._conversationHistory = [
       {
         role: "system",
-        content: "You are an AI Coding agent. You will help your user with code related tasks. If the user asks you a question that isn't code related, tell the user that you are just a coding AI assistant. The user's messages may include some text that is currently selected by the user's mouse. If meaningful information can be extracted from the user's selected text and helps answer the user's prompt, then use it to help you answer the user's prompt. If no meaningful information can be extracted from the user selected text (typo or just random text) or the selected text is not related to the user's prompt, you may safely ignore the user's selected text and focus on answering the user's prompt. You might also be provided with the text contents of the file that the user is currently looking at, which you may use to give yourself more context and help you answer the user's prompt.",
+        content: "You are an AI Coding agent. You will help your user with code related tasks. If the user asks you a question that isn't code related, tell the user that you are just a coding AI assistant. The user's messages may include some text that is currently selected by the user's mouse. If meaningful information can be extracted from the user's selected text and helps answer the user's prompt, then use it to help you answer the user's prompt. If no meaningful information can be extracted from the user selected text (typo or just random text) or the selected text is not related to the user's prompt, you may safely ignore the user's selected text and focus on answering the user's prompt. You might also be provided with the text contents of the file that the user is currently looking at, which you may use to give yourself more context and help you answer the user's prompt. If the file's text content and/or the selected code is unrelated to the user's prompt, you can just answer the user's prompt without considering additional context.",
       },
     ];
-    this._currentModel = "qwq";
+    this._currentModel = "deepseek-r1:8b";
     this._editor = vscode.window.activeTextEditor;
     vscode.window.onDidChangeActiveTextEditor(editor => {
       this._editor = editor;
@@ -188,6 +188,7 @@ export default class DeepSeekViewProvider implements vscode.WebviewViewProvider 
     }
 
     console.log("Received user prompt: " + userPrompt);
+    userPrompt += "User prompt: ";
 
     // Consider the current file opened by the user's VS Code window.
     const fileContent = this._getCurrentFileContent();

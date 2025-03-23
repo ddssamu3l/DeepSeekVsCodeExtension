@@ -29,12 +29,12 @@ export default function getWebviewContent(): string {
           <select class="model-selector" name="model-selector" id="model-selector">
             <option value="deepseek-r1:1.5b">DeepSeek R1 1.5b (1.5GB)</option>
             <option value="deepseek-r1:7b">DeepSeek R1 7b (4.7GB)</option>
-            <option value="deepseek-r1:8b">DeepSeek R1 8b (4.9GB)</option>
+            <option value="deepseek-r1:8b" selected>DeepSeek R1 8b (4.9GB)</option>
             <option value="deepseek-r1:14b">DeepSeek R1 14b (9GB)</option>
             <option value="deepseek-r1:32b">DeepSeek R1 32b (20GB)</option>
             <option value="deepseek-r1:70b">DeepSeek R1 70b (43GB)</option>
             <option value="deepseek-r1:671b">DeepSeek R1 671b (404GB)</option>
-            <option value="qwq" selected>QwQ (20GB)</option>
+            <option value="qwq">QwQ (20GB)</option>
           </select>
           <button id="clearButton">Clear Chat</button>
         </div>

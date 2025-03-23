@@ -249,7 +249,7 @@ function getWebviewContent() {
           clearChat();
           if (messages && messages.length > 0) {
             messages.forEach(msg => {
-              if(msg.role !== "system"){
+              if(msg.role !== "system" && msg.role !== "tool_call_request" && msg.role !== "tool_call_response"){
                 addMessage(msg.role, msg.content);
               }
             });

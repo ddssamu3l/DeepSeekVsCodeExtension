@@ -39,14 +39,24 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const vscode = __importStar(require("vscode"));
 const ollama_1 = __importDefault(require("ollama"));
 const webviewContent_1 = __importDefault(require("../webviewContent"));
+const tools_1 = require("../tools/tools");
 // A class that provides the webview for the sidebar
 class DeepSeekViewProvider {
     _extensionUri;
     _view;
-    _conversationHistory = [];
-    _currentModel = "qwq";
+    _conversationHistory;
+    _currentModel;
+    _tools;
     constructor(_extensionUri) {
         this._extensionUri = _extensionUri;
+        this._conversationHistory = [
+            {
+                role: "system",
+                content: "You are an AI Coding agent. You will help the user with code related tasks. If the user asks you a question that isn't code related, tell the user that you are just a coding AI assistant. The conversation between you and the user will be stored in a conversation history, so you will have context of all messages send between you and the user. You also have the ability to call tools. Your tool call request and the tool call's response will also be stored in the conversation history. The conversation history is stored as an array of 'Message' objects. There are 4 types of roles in the conversation history, as indicated by the 'role' field in each 'Message' boject. A 'Message' object where the 'role' field is equal to 'assistant' means that its a message sent from you. A 'Message' object where the 'role' field is equal to 'user' means that the message's content is sent from the user. A 'Message' object where the 'role' field is equal to 'assistant_tool_call_request' is a tool call request made by you. A 'Message' object where the 'role' field is equal to 'user_tool_call_response' represents a response from a tool to a tool call request that you made previously. Be sure to read the tool call responses."
+            },
+        ];
+        this._currentModel = "qwq";
+        this._tools = (0, tools_1.getTools)();
     }
     // Called by VS Code when the view should be displayed
     resolveWebviewView(webviewView, _context, _token) {
@@ -80,8 +90,6 @@ class DeepSeekViewProvider {
                     this._currentModel = message.modelName;
                 }
             });
-            // set the system prompt to prepare the DeepSeek agent
-            this._conversationHistory.push({ role: "system", content: "You are an AI Coding agent. You will help your user with code related tasks. If the user asks you a question that isn't code related, tell the user that you are just a coding AI assistant." });
         }
         catch (error) {
             console.error("Error initializing webview:", error);
@@ -154,22 +162,6 @@ class DeepSeekViewProvider {
             return false;
         }
     }
-    _getSelectedText() {
-        const editor = vscode.window.activeTextEditor;
-        if (editor) {
-            const selection = editor.selection;
-            if (selection.isEmpty) {
-                console.log("Cursor only — no text is selected.");
-                return '';
-            }
-            else {
-                const selectedText = editor.document.getText(selection);
-                console.log("Text is selected:", selectedText);
-                return "\n Selected text:\n" + selectedText;
-            }
-        }
-        return '';
-    }
     // Handle user prompts sent from the webview
     async _handleUserPrompt(userPrompt) {
         if (!this._view) {
@@ -177,8 +169,6 @@ class DeepSeekViewProvider {
             return;
         }
         let responseText = "";
-        const selectedText = this._getSelectedText();
-        userPrompt += selectedText;
         console.log("Received user prompt: " + userPrompt);
         try {
             // Add user message to conversation history
@@ -195,28 +185,53 @@ class DeepSeekViewProvider {
                 messages: this._conversationHistory,
             });
             try {
-                // Call Ollama with the full conversation history and selected model
-                console.log(`Calling Ollama API with model ${this._currentModel}`);
-                const streamResponse = await ollama_1.default.chat({
-                    model: this._currentModel,
-                    messages: this._conversationHistory,
-                    stream: true,
-                });
-                // Reset the response text for the current assistant message
-                const newMsgIndex = this._conversationHistory.length - 1;
-                // Stream each chunk if the new resonse to the webview
-                for await (const part of streamResponse) {
-                    responseText += part.message.content;
-                    // Add the current (incomplete) assistant message
-                    this._conversationHistory[newMsgIndex].content = responseText;
-                    if (this._view) {
-                        this._view.webview.postMessage({
-                            command: "chatResponse",
-                            text: responseText,
-                            messages: this._conversationHistory,
-                        });
+                let responseText = "";
+                let toolCallProcessed = false;
+                do {
+                    // Send the current conversation history to Ollama
+                    const responseStream = await ollama_1.default.chat({
+                        model: this._currentModel,
+                        messages: this._conversationHistory,
+                        tools: this._tools,
+                        stream: true,
+                    });
+                    toolCallProcessed = false;
+                    for await (const part of responseStream) {
+                        // If a tool call is detected (content is empty and tool_calls exist)
+                        if (part.message.tool_calls && part.message.content === "") {
+                            console.log("Ollama responded with a tool call request: ", JSON.stringify(part.message.tool_calls));
+                            // Remove the assistant placeholder that triggered the tool call
+                            this._conversationHistory.pop();
+                            const internalToolCallMsg = {
+                                role: "assistant_tool_call_request",
+                                content: "",
+                                tool_calls: part.message.tool_calls,
+                            };
+                            // Process each tool call to get its response(s)
+                            const toolCallResponses = part.message.tool_calls.map(tool_call => (0, tools_1.handleToolCalls)(tool_call));
+                            console.log("Tool call responses: " + JSON.stringify(toolCallResponses));
+                            // Append the internal record, the responses, and add a new assistant placeholder
+                            this._conversationHistory.push(internalToolCallMsg, ...toolCallResponses, { role: "assistant", content: "" });
+                            console.log("Updated conversation history: " + JSON.stringify(this._conversationHistory));
+                            // Mark that we processed a tool call so we loop again
+                            toolCallProcessed = true;
+                            break;
+                        }
+                        else {
+                            // Otherwise, accumulate streamed text and update the last assistant message
+                            responseText += part.message.content;
+                            const lastIndex = this._conversationHistory.length - 1;
+                            this._conversationHistory[lastIndex].content = responseText;
+                            if (this._view) {
+                                this._view.webview.postMessage({
+                                    command: "chatResponse",
+                                    text: responseText,
+                                    messages: this._conversationHistory,
+                                });
+                            }
+                        }
                     }
-                }
+                } while (toolCallProcessed);
                 console.log("Finished streaming response from Ollama");
                 // Set the status as completed
                 this._view.webview.postMessage({

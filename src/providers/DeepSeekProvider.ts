@@ -12,10 +12,32 @@ interface Message {
 // A class that provides the webview for the sidebar
 export default class DeepSeekViewProvider implements vscode.WebviewViewProvider {
   private _view?: vscode.WebviewView;
-  private _conversationHistory: Message[] = [];
-  private _currentModel: string = "qwq";
+  private _conversationHistory: Message[];
+  private _currentModel: string;
+  private _editor: vscode.TextEditor | undefined;
 
-  constructor(private readonly _extensionUri: vscode.Uri) {}
+  constructor(private readonly _extensionUri: vscode.Uri) {
+    this._conversationHistory = [
+      {
+        role: "system",
+        content: "You are an AI Coding agent. You will help your user with code related tasks. If the user asks you a question that isn't code related, tell the user that you are just a coding AI assistant. The user's messages may include some text that is currently selected by the user's mouse. If meaningful information can be extracted from the user's selected text and helps answer the user's prompt, then use it to help you answer the user's prompt. If no meaningful information can be extracted from the user selected text (typo or just random text) or the selected text is not related to the user's prompt, you may safely ignore the user's selected text and focus on answering the user's prompt. You might also be provided with the text contents of the file that the user is currently looking at, which you may use to give yourself more context and help you answer the user's prompt.",
+      },
+    ];
+    this._currentModel = "qwq";
+    this._editor = vscode.window.activeTextEditor;
+    vscode.window.onDidChangeActiveTextEditor(editor => {
+      this._editor = editor;
+    });
+  }
+
+  /**    const currentFile = this._editor?.document.getText();
+    if(this._editor){
+      console.log("Editor defined");
+    }
+    if(currentFile){
+      console.log("Current file: " + currentFile);
+      this._conversationHistory[0].content = this._conversationHistory[0].content + "Text content of current file:\n" + currentFile;
+    } */
 
   // Called by VS Code when the view should be displayed
   public resolveWebviewView(
@@ -52,9 +74,6 @@ export default class DeepSeekViewProvider implements vscode.WebviewViewProvider 
           this._currentModel = message.modelName;
         }
       });
-
-      // set the system prompt to prepare the DeepSeek agent
-      this._conversationHistory.push({ role: "system", content: "You are an AI Coding agent. You will help your user with code related tasks. If the user asks you a question that isn't code related, tell the user that you are just a coding AI assistant."});
     } catch (error) {
       console.error("Error initializing webview:", error);
       vscode.window.showErrorMessage(
@@ -144,17 +163,17 @@ export default class DeepSeekViewProvider implements vscode.WebviewViewProvider 
     }
   }
 
-  private _getSelectedText(): string{
-    const editor = vscode.window.activeTextEditor;
-    if (editor) {
-      const selection = editor.selection;
+  private _getCurrentFileContent(): string {
+    return this._editor ? this._editor.document.getText() : "";
+  }
 
+  private _getSelectedText(): string{
+    if (this._editor) {
+      const selection = this._editor.selection;
       if (selection.isEmpty) {
-        console.log("Cursor only — no text is selected.");
         return '';
       } else {
-        const selectedText = editor.document.getText(selection);
-        console.log("Text is selected:", selectedText);
+        const selectedText = this._editor.document.getText(selection);
         return "\n Selected text:\n" + selectedText;
       }
     }
@@ -167,10 +186,16 @@ export default class DeepSeekViewProvider implements vscode.WebviewViewProvider 
       console.error("Cannot handle prompt - view is undefined");
       return;
     }
+    // consider the current file opened by the user's VS Code window.
+    const fileContent = this._getCurrentFileContent();
+    if (fileContent.trim()) {
+      console.log("Current file: " + fileContent);
+      this._conversationHistory[0].content += `\nText content of current file:\n${fileContent}`;
+    }
 
     let responseText = "";
-    const selectedText = this._getSelectedText();
-    userPrompt += selectedText;
+    // const selectedText = this._getSelectedText();
+    // userPrompt += selectedText;
     console.log("Received user prompt: " + userPrompt);
 
     try {

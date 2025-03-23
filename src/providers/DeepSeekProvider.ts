@@ -13,7 +13,7 @@ interface Message {
 export default class DeepSeekViewProvider implements vscode.WebviewViewProvider {
   private _view?: vscode.WebviewView;
   private _conversationHistory: Message[] = [];
-  private _currentModel: string = "deepseek-r1:14b"; // default model
+  private _currentModel: string = "qwq";
 
   constructor(private readonly _extensionUri: vscode.Uri) {}
 
@@ -54,7 +54,7 @@ export default class DeepSeekViewProvider implements vscode.WebviewViewProvider 
       });
 
       // set the system prompt to prepare the DeepSeek agent
-      this._conversationHistory.push({ role: "system", content: "You are an agent that exists in a VsCode extension where there is a chat interface that the user can communicate to you with."});
+      this._conversationHistory.push({ role: "system", content: "You are an AI Coding agent. You will help your user with code related tasks. If the user asks you a question that isn't code related, tell the user that you are just a coding AI assistant."});
     } catch (error) {
       console.error("Error initializing webview:", error);
       vscode.window.showErrorMessage(

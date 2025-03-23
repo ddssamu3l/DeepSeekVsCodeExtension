@@ -1,24 +1,39 @@
 import * as vscode from "vscode";
 import ollama from "ollama";
 
-import { getCurrentFileContent, getSelectedText } from "../utils/editorUtils";
-
+import getFileContext from "../utils/editorUtils";
 import getWebviewContent from "../webviewContent";
-import { error } from "console";
 
-// Define message types for conversation
+/**
+ * Interface representing a message in the conversation.
+ * @interface Message
+ */
 interface Message {
+  /** The role of the message sender */
   role: "user" | "assistant" | "system";
+  /** The content of the message */
   content: string;
 }
 
-// A class that provides the webview for the sidebar
+/**
+ * Provider class for the DeepSeek VS Code extension.
+ * Handles the webview, conversation history, and communication with Ollama.
+ * @implements {vscode.WebviewViewProvider}
+ */
 export default class DeepSeekViewProvider implements vscode.WebviewViewProvider {
+  /** The current webview instance */
   private _view?: vscode.WebviewView;
+  /** History of messages in the current conversation */
   private _conversationHistory: Message[];
+  /** The current Ollama model being used */
   private _currentModel: string;
+  /** Reference to the active text editor */
   private _editor: vscode.TextEditor | undefined;
 
+  /**
+   * Creates a new instance of DeepSeekViewProvider.
+   * @param {vscode.Uri} _extensionUri - The URI of the extension directory
+   */
   constructor(private readonly _extensionUri: vscode.Uri) {
     this._conversationHistory = [
       {
@@ -33,7 +48,13 @@ export default class DeepSeekViewProvider implements vscode.WebviewViewProvider 
     });
   }
 
-  // Called by VS Code when the view should be displayed
+  /**
+   * Required method to implement the WebviewViewProvider interface.
+   * Initializes the webview when it becomes visible in VS Code.
+   * @param {vscode.WebviewView} webviewView - The webview view to configure
+   * @param {vscode.WebviewViewResolveContext} _context - The context in which the view is being resolved
+   * @param {vscode.CancellationToken} _token - A cancellation token
+   */
   public resolveWebviewView(
     webviewView: vscode.WebviewView,
     _context: vscode.WebviewViewResolveContext,
@@ -78,7 +99,10 @@ export default class DeepSeekViewProvider implements vscode.WebviewViewProvider 
     }
   }
 
-  // Update the webview content
+  /**
+   * Updates the HTML content of the webview and initializes it with the conversation history.
+   * @private
+   */
   private _updateWebview() {
     if (!this._view) {
       console.error("Cannot update webview - view is undefined");
@@ -108,14 +132,22 @@ export default class DeepSeekViewProvider implements vscode.WebviewViewProvider 
     }
   }
 
-  // Clear the conversation history
+  /**
+   * Clears the conversation history, keeping only the system prompt.
+   * @private
+   */
   private _clearConversation() {
     // clear all messages except for the system prompt
     this._conversationHistory.length = 1;
     console.log("Chat history cleared");
   }
   
-  // Check if a model is installed with Ollama
+  /**
+   * Checks if a specific Ollama model is installed.
+   * @private
+   * @param {string} modelName - The name of the model to check
+   * @returns {Promise<boolean>} True if the model is installed, false otherwise
+   */
   private async _checkModelInstalled(modelName: string) {
     if (!this._view) {
       console.error("Cannot check model - view is undefined");
@@ -157,29 +189,47 @@ export default class DeepSeekViewProvider implements vscode.WebviewViewProvider 
     }
   }
 
+  /**
+   * Adds a new user message and a placeholder assistant message to the conversation history.
+   * @private
+   * @param {string} fullPrompt - The complete user prompt including any context
+   */
   private _buildNewChatResponse(fullPrompt: string){
     // Add user message to conversation history
     this._conversationHistory.push({ role: "user", content: fullPrompt });
-    // push a new assistance response to the conversation history, with a placeholder of "" since the resopsne has yet to come in
+    // push a new assistance response to the conversation history, with a placeholder of "" since the response has yet to come in
     this._conversationHistory.push({
       role: "assistant",
       content: "",
     });
   }
 
+  /**
+   * Builds the complete prompt that will be sent to Ollama with all relevant context.
+   * @private
+   * @param {string} userPrompt - The text prompt that the user entered
+   * @returns {string} The complete prompt with user input, selected text, and file content
+   */
   private _buildFullPrompt(userPrompt: string): string {
+    const { fileContent, selectedText } = getFileContext();
+
     let fullPrompt = `User prompt: ${userPrompt}`;
-    const fileContent = getCurrentFileContent();
     if (fileContent.trim()) {
       fullPrompt += `\nText content of current file:\n${fileContent}`;
     }
-    const selectedText = getSelectedText();
     if (selectedText.trim()) {
       fullPrompt += `\nSelected text:\n${selectedText}`;
     }
+
     return fullPrompt;
   }
 
+  /**
+   * Streams the response from Ollama and updates the conversation history.
+   * @private
+   * @param {Message[]} messages - The current conversation history
+   * @returns {Promise<Message[]>} The updated conversation history
+   */
   private async _streamOllamaResponse(messages: Message[]): Promise<Message[]> {
     let responseText = "";
 
@@ -208,7 +258,11 @@ export default class DeepSeekViewProvider implements vscode.WebviewViewProvider 
     return messages;
   }
 
-  // Handle user prompts sent from the webview
+  /**
+   * Handles user prompts sent from the webview, processes them, and sends them to Ollama.
+   * @private
+   * @param {string} userPrompt - The text prompt submitted by the user
+   */
   private async _handleUserPrompt(userPrompt: string) {
     if (!this._view) {
       console.error("Cannot handle prompt - view is undefined");

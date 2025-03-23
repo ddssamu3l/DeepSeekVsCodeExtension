@@ -2,6 +2,12 @@ import { markdownToHTML } from "./utils/markdownConverter";
 import * as fs from 'fs';
 import * as path from 'path';
 
+/**
+ * Generates the HTML content for the DeepSeek extension webview.
+ * This includes the HTML structure, CSS styles, and JavaScript code for the chat interface.
+ * @function getWebviewContent
+ * @returns {string} HTML content for the webview
+ */
 export default function getWebviewContent(): string {
   
   // import the markdownToHTML helper and convert it into a string. We will inject it to a <script> tag later.

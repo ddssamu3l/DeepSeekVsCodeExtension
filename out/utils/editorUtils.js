@@ -33,21 +33,23 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getCurrentFileContent = getCurrentFileContent;
-exports.getSelectedText = getSelectedText;
+exports.default = getFileContext;
 const vscode = __importStar(require("vscode"));
-// Returns the text that is currently selected by the user's cursor
-function getCurrentFileContent() {
+/**
+ * Retrieves text context from the active editor.
+ * @function getFileContext
+ * @returns {Object} An object containing the active file's content and any selected text
+ * @returns {string} fileContent - The full text content of the current file
+ * @returns {string} selectedText - The text currently selected by the user
+ */
+function getFileContext() {
     const editor = vscode.window.activeTextEditor;
-    return editor ? editor.document.getText() : "";
-}
-// returns the entire text content of the file displayed in the current VS Code window
-function getSelectedText() {
-    const editor = vscode.window.activeTextEditor;
-    if (editor) {
-        const selection = editor.selection;
-        return selection.isEmpty ? "" : editor.document.getText(selection);
+    if (!editor) {
+        return { fileContent: "", selectedText: "" };
     }
-    return "";
+    const fileContent = editor.document.getText();
+    const selection = editor.selection;
+    const selectedText = selection.isEmpty ? "" : editor.document.getText(selection);
+    return { fileContent, selectedText };
 }
 //# sourceMappingURL=editorUtils.js.map

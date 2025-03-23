@@ -194,8 +194,8 @@ export default class DeepSeekViewProvider implements vscode.WebviewViewProvider 
     }
 
     let responseText = "";
-    // const selectedText = this._getSelectedText();
-    // userPrompt += selectedText;
+    const selectedText = this._getSelectedText();
+    userPrompt += selectedText;
     console.log("Received user prompt: " + userPrompt);
 
     try {

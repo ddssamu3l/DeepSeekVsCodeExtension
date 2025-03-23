@@ -1,7 +1,10 @@
 import * as vscode from "vscode";
 import ollama from "ollama";
 
+import { getCurrentFileContent, getSelectedText } from "../utils/editorUtils";
+
 import getWebviewContent from "../webviewContent";
+import { error } from "console";
 
 // Define message types for conversation
 interface Message {
@@ -29,15 +32,6 @@ export default class DeepSeekViewProvider implements vscode.WebviewViewProvider 
       this._editor = editor;
     });
   }
-
-  /**    const currentFile = this._editor?.document.getText();
-    if(this._editor){
-      console.log("Editor defined");
-    }
-    if(currentFile){
-      console.log("Current file: " + currentFile);
-      this._conversationHistory[0].content = this._conversationHistory[0].content + "Text content of current file:\n" + currentFile;
-    } */
 
   // Called by VS Code when the view should be displayed
   public resolveWebviewView(
@@ -163,21 +157,55 @@ export default class DeepSeekViewProvider implements vscode.WebviewViewProvider 
     }
   }
 
-  private _getCurrentFileContent(): string {
-    return this._editor ? this._editor.document.getText() : "";
+  private _buildNewChatResponse(fullPrompt: string){
+    // Add user message to conversation history
+    this._conversationHistory.push({ role: "user", content: fullPrompt });
+    // push a new assistance response to the conversation history, with a placeholder of "" since the resopsne has yet to come in
+    this._conversationHistory.push({
+      role: "assistant",
+      content: "",
+    });
   }
 
-  private _getSelectedText(): string{
-    if (this._editor) {
-      const selection = this._editor.selection;
-      if (selection.isEmpty) {
-        return '';
-      } else {
-        const selectedText = this._editor.document.getText(selection);
-        return selectedText;
-      }
+  private _buildFullPrompt(userPrompt: string): string {
+    let fullPrompt = `User prompt: ${userPrompt}`;
+    const fileContent = getCurrentFileContent();
+    if (fileContent.trim()) {
+      fullPrompt += `\nText content of current file:\n${fileContent}`;
     }
-    return'';
+    const selectedText = getSelectedText();
+    if (selectedText.trim()) {
+      fullPrompt += `\nSelected text:\n${selectedText}`;
+    }
+    return fullPrompt;
+  }
+
+  private async _streamOllamaResponse(messages: Message[]): Promise<Message[]> {
+    let responseText = "";
+
+    const streamResponse = await ollama.chat({
+      model: this._currentModel,
+      messages,
+      stream: true,
+    });
+    for await (const part of streamResponse) {
+      responseText += part.message.content;
+      // Update UI
+      this._view?.webview.postMessage({
+        command: "chatResponse",
+        text: responseText,
+        messages: this._conversationHistory,
+      });
+    }
+
+    // after Ollama finishes streaming in its response, we append the completed response to the conversation history
+    if(messages.length > 2 && messages[messages.length-2].role === "user"){
+      messages[messages.length - 2].content = responseText;
+    }else{
+      console.error("Error: Error appending Ollama response to conversation history");
+    }
+
+    return messages;
   }
 
   // Handle user prompts sent from the webview
@@ -188,66 +216,15 @@ export default class DeepSeekViewProvider implements vscode.WebviewViewProvider 
     }
 
     console.log("Received user prompt: " + userPrompt);
-    userPrompt += "User prompt: ";
-
-    // Consider the current file opened by the user's VS Code window.
-    const fileContent = this._getCurrentFileContent();
-    if (fileContent.trim()) {
-      userPrompt += `\nText content of current file:\n${fileContent}`;
-    }
-
-    // Add the user's selected text as part of the prompt itself to give Ollama more context without tool calling
-    let responseText = "";
-    const selectedText = this._getSelectedText();
-    if(selectedText.trim()){
-      userPrompt += "\n Selected text:\n" + selectedText;
-    }
+    const fullPrompt = this._buildFullPrompt(userPrompt);
 
     try {
-      // Add user message to conversation history
-      this._conversationHistory.push({ role: "user", content: userPrompt});
-
-      // push a new assistance response to the conversation history, with a placeholder of "" since the resopsne has yet to come in
-      this._conversationHistory.push({
-        role: "assistant",
-        content: "",
-      });
-
-      // For immediate feedback while Ollama loads
-      this._view.webview.postMessage({
-        command: "chatResponse",
-        text: "Processing your request...",
-        messages: this._conversationHistory,
-      });
+      // initialize the start of a new round of conversation between the user and Ollama
+      this._buildNewChatResponse(fullPrompt);
 
       try {
-        // Call Ollama with the full conversation history and selected model
-        console.log(`Calling Ollama API with model: ${this._currentModel}`);
-        const streamResponse = await ollama.chat({
-          model: this._currentModel,
-          messages: this._conversationHistory,
-          stream: true,
-        });
-
-        // Reset the response text for the current assistant message
-        const newMsgIndex = this._conversationHistory.length - 1;
-
-        // Stream each chunk if the new resonse to the webview
-        for await (const part of streamResponse) {
-          responseText += part.message.content;
-
-          // Add the current (incomplete) assistant message
-          this._conversationHistory[newMsgIndex].content = responseText;
-
-          if (this._view) {
-            this._view.webview.postMessage({
-              command: "chatResponse",
-              text: responseText,
-              messages: this._conversationHistory,
-            });
-          }
-        }
-
+        // call Ollama with the user prompt and stream in the response
+        this._conversationHistory = await this._streamOllamaResponse(this._conversationHistory);
         console.log("Finished streaming response from Ollama");
 
         // Set the status as completed
@@ -265,16 +242,13 @@ export default class DeepSeekViewProvider implements vscode.WebviewViewProvider 
             (ollamaError instanceof Error
               ? ollamaError.message
               : String(ollamaError));
-
-          // Add error message to conversation history
-          this._conversationHistory.push({
-            role: "assistant",
-            content: errorMessage,
-          });
-
+          
+              // append the error message in place of Ollama's response
+          if(this._conversationHistory.length > 1){
+            this._conversationHistory[this._conversationHistory.length - 1].content = errorMessage;
+          }
           this._view.webview.postMessage({
-            command: "chatResponse",
-            text: errorMessage,
+            command: "chatCompletion",
             messages: this._conversationHistory,
           });
         }

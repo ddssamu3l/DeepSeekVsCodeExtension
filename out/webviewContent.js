@@ -34,7 +34,7 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.default = getWebviewContent;
-const markdownConverter_1 = require("./helpers/markdownConverter");
+const markdownConverter_1 = require("./utils/markdownConverter");
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
 function getWebviewContent() {

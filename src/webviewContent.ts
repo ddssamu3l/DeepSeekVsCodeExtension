@@ -1,4 +1,4 @@
-import { markdownToHTML } from "./helpers/markdownConverter";
+import { markdownToHTML } from "./utils/markdownConverter";
 import * as fs from 'fs';
 import * as path from 'path';
 

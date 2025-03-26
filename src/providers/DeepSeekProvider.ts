@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import ollama from "ollama";
 
 import getFileContext from "../utils/editorUtils";
+import removeThink from "../utils/removeThink";
 import getWebviewContent from "../webviewContent";
 
 /**
@@ -38,7 +39,7 @@ export default class DeepSeekViewProvider implements vscode.WebviewViewProvider 
     this._conversationHistory = [
       {
         role: "system",
-        content: "You are an AI Coding agent. You will help your user with code related tasks. If the user asks you a question that isn't code related, tell the user that you are just a coding AI assistant. The user's messages may include some text that is currently selected by the user's mouse. If meaningful information can be extracted from the user's selected text and helps answer the user's prompt, then use it to help you answer the user's prompt. If no meaningful information can be extracted from the user selected text (typo or just random text) or the selected text is not related to the user's prompt, you may safely ignore the user's selected text and focus on answering the user's prompt. You might also be provided with the text contents of the file that the user is currently looking at, which you may use to give yourself more context and help you answer the user's prompt. If the file's text content and/or the selected code is unrelated to the user's prompt, you can just answer the user's prompt without considering additional context.",
+        content: "You are an AI Coding agent. You will help your user with code related tasks. The user's prompts may include some text that is currently selected by the user's mouse. If meaningful information can be extracted from the user's selected text and helps answer the user's prompt, then use it to help you answer the user's prompt. If no meaningful information can be extracted from the user selected text (typo or just random text) or the selected text is not related to the user's prompt, you may safely ignore the user's selected text and focus on answering the user's prompt. You might also be provided with the text contents of the file that the user is currently looking at, which you may use to give yourself more context and help you answer the user's prompt. If the file's text content and/or the selected code is unrelated to the user's prompt, you can just answer the user's prompt without considering additional context.",
       },
     ];
     this._currentModel = "deepseek-r1:8b";
@@ -247,10 +248,11 @@ export default class DeepSeekViewProvider implements vscode.WebviewViewProvider 
         messages: this._conversationHistory,
       });
     }
-
+    // remove the thinking text from the assistant's response
+    responseText = removeThink(responseText);
     // after Ollama finishes streaming in its response, we append the completed response to the conversation history
-    if(messages.length > 2 && messages[messages.length-2].role === "user"){
-      messages[messages.length - 2].content = responseText;
+    if(messages.length > 2 && messages[messages.length-1].role === "assistant"){
+      messages[messages.length - 1].content = responseText;
     }else{
       console.error("Error: Error appending Ollama response to conversation history");
     }
@@ -279,11 +281,14 @@ export default class DeepSeekViewProvider implements vscode.WebviewViewProvider 
       try {
         // call Ollama with the user prompt and stream in the response
         this._conversationHistory = await this._streamOllamaResponse(this._conversationHistory);
+        // turn the full prompt back to the original user prompt to reduce conversation size.
+        this._conversationHistory[this._conversationHistory.length-2].content = userPrompt;
         console.log("Finished streaming response from Ollama");
 
         // Set the status as completed
         this._view.webview.postMessage({
           command: "chatCompletion",
+          text: this._conversationHistory[this._conversationHistory.length-1].content,
           messages: this._conversationHistory,
         });
       } catch (ollamaError) {
@@ -303,6 +308,7 @@ export default class DeepSeekViewProvider implements vscode.WebviewViewProvider 
           }
           this._view.webview.postMessage({
             command: "chatCompletion",
+            text: this._conversationHistory[this._conversationHistory.length - 1].content,
             messages: this._conversationHistory,
           });
         }

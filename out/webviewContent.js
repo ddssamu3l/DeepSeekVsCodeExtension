@@ -210,7 +210,7 @@ function getWebviewContent() {
           // User message can have a date id assigned immediately since they will only be added once
           // Assistant messages are constantly streamed so they will get an id when the "chatCompletion" command is activated
           if (role === 'assistant') {
-            messageDiv.id = 'current-streaming-message';
+            messageDiv.id = "assistant-message";
             messageDiv.innerHTML = markdownToHTML(content);
           }else{
             messageDiv.textContent = content;
@@ -234,15 +234,20 @@ function getWebviewContent() {
         // Update the current streaming assistant message (identified by thinking indicator)
         // 'content' is the markdown text returned by the AI. We will convert it to HTML text and render it as HTML
         function updateCurrentStreamingMessage(content) {
-          // Look for the current streaming message
-          const streamingMsg = document.getElementById('current-streaming-message');
-          if (streamingMsg) {
+          // Select the chat container
+          const container = document.getElementById('chatContainer');
+          
+          // select the last message in the chat container (which should be an assistant messaage), and stream in the new content
+          if (container && container.lastElementChild) {
+            const streamingMsg = container.lastElementChild;
+
+            if (streamingMsg) {
             streamingMsg.innerHTML = markdownToHTML(content);
+            }
           } else {
             // If somehow it doesn't exist, just add a new message
             console.log("updateCurrentStreamingMessage() could not find current-streaming-message div. Creating a new current-streaming-message div");
             var messageDiv = addMessage('assistant', content);
-            messageDiv.id = 'current-streaming-message';
           }
           
           // Scroll to bottom
@@ -296,7 +301,7 @@ function getWebviewContent() {
             // Add user message to the chat
             addMessage('user', userPrompt);
             // Add a new streaming div for the ai to stream its response in
-            addMessage('assistant', 'Processing your request with DeepSeek R1...');
+            addMessage('assistant', 'Processing your request...');
             
             document.getElementById("status").textContent = "Sending request to DeepSeek...";
             document.getElementById("askButton").textContent = "Generating...";
@@ -339,27 +344,31 @@ function getWebviewContent() {
               if(text){
                 updateCurrentStreamingMessage(text);
               }else{
-                updateCurrentStreamingMessage("Processing your request with DeepSeek R1...");
+                console.error("Error: No text provided in chatResponse command");
               }
               const statusElem = document.getElementById("status");
               if (statusElem) {
+                statusElem.style.color = "";
                 statusElem.textContent = "Receiving response...";
               }
             }
             else if (command === "chatCompletion") {
-              // set the current streaming div as a regular completed message div
-              var currentStreamingMessage = document.getElementById("current-streaming-message");
-              if(currentStreamingMessage) currentStreamingMessage.id = 'assistant-message-' + Date.now();
-              else console.error("Failed to find current streaming div");
+              const container = document.getElementById('chatContainer');
+
+              if(container && container.lastElementChild){
+                const lastAssistantMessage = container.lastElementChild;
+                lastAssistantMessage.innerHTML = markdownToHTML(text);
+                lastAssistantMessage.id = "assistant-message-" + Date.now();
+              }
 
               const askButtonElem = document.getElementById("askButton");
               const statusElem = document.getElementById("status");
               const clearButtonElem = document.getElementById("clearButton");
               
               if (askButtonElem) askButtonElem.textContent = "Ask DeepSeek";
-              if (statusElem) statusElem.textContent = "Response completed!";
+              if (statusElem){statusElem.textContent = "Response completed!"; statusElem.style.color = "";}
               if (askButtonElem) askButtonElem.disabled = false;
-              if (clearButtonElem) clearButtonElem.disabled = false;             
+              if (clearButtonElem) clearButtonElem.disabled = false;          
 
               // Reset the status after 3 seconds
               setTimeout(() => {

@@ -12,6 +12,9 @@ function markdownToHTML(markdown) {
     let html = markdown.replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;');
+    // Handle LaTeX-style math: block math \[...\] and inline math \(...\)
+    html = html.replace(/\\\[(.*?)\\\]/gs, '<div class="math-block">\\[$1\\]</div>');
+    html = html.replace(/\\\((.+?)\\\)/gs, '<span class="math-inline">\\($1\\)</span>');
     // Convert code blocks (```language\ncode\n```)
     html = html.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code) => {
         return `<pre><code class="language-${lang || 'plaintext'}">${code}</code></pre>`;
@@ -31,18 +34,10 @@ function markdownToHTML(markdown) {
     html = html.replace(/(\*|_)(.*?)\1/gim, '<em>$2</em>');
     // Convert blockquotes (lines starting with >)
     html = html.replace(/^\> (.*)$/gim, '<blockquote>$1</blockquote>');
-    // // Convert unordered list items (lines starting with - or *)
-    // html = html.replace(/^\s*[-*]\s+(.*)$/gim, '<li>$1</li>');
-    // // Wrap consecutive <li> elements in <ul> tags
-    // html = html.replace(/(<li>[\s\S]+?<\/li>)/gim, '<ul>$1</ul>');
-    // // Convert ordered list items (lines starting with a number and a dot)
-    // html = html.replace(/^\s*\d+\.\s+(.*)$/gim, '<li>$1</li>');
-    // // Wrap consecutive <li> elements in <ol> tags
-    // html = html.replace(/(<li>[\s\S]+?<\/li>)/gim, '<ol>$1</ol>');
     // Convert remaining newlines to <br> for simple line breaks.
     html = html.replace(/\n/g, '<br>');
-    // convert <think> tags to <div> tag with a "think" class
-    html = html.replace(/<think>/g, '<p>');
+    // Convert <think> tags to <p class="think">
+    html = html.replace(/<think>/g, '<p class="think">');
     html = html.replace(/<\/think>/g, '</p>');
     return html;
 }

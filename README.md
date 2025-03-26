@@ -40,7 +40,7 @@ After that, the extension should be **running** in the new debug window!
 **NOTE:** After you open a debug window, you must open a file in order for the extension to appear in the activity sidebar.
 
 
-## Install the extension to your VsCode
+## Install the extension to your VS Code
 To install the extension, run this command from the project directory's terminal:
 ```
 vsce package

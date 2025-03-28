@@ -66,12 +66,15 @@ function getWebviewContent() {
         <div class="header">
           <select class="model-selector" name="model-selector" id="model-selector">
             <option value="deepseek-r1:1.5b">DeepSeek R1 1.5b (1.5GB)</option>
-            <option value="deepseek-r1:7b">DeepSeek R1 7b (4.7GB)</option>
-            <option value="deepseek-r1:8b" selected>DeepSeek R1 8b (4.9GB)</option>
-            <option value="deepseek-r1:14b">DeepSeek R1 14b (9GB)</option>
-            <option value="deepseek-r1:32b">DeepSeek R1 32b (20GB)</option>
-            <option value="deepseek-r1:70b">DeepSeek R1 70b (43GB)</option>
-            <option value="deepseek-r1:671b">DeepSeek R1 671b (404GB)</option>
+              <option value="deepseek-r1:8b" selected>DeepSeek R1 8b (4.9GB)</option>
+              <option value="deepseek-r1:14b">DeepSeek R1 14b (9GB)</option>
+              <option value="deepseek-r1:32b">DeepSeek R1 32b (20GB)</option>
+              <option value="deepseek-r1:70b">DeepSeek R1 70b (43GB)</option>
+            <option value="gemma3:1b">Gemma 3 1b (815MB)</option>
+              <option value="gemma3:4b">Gemma 3 4b (3.3GB)</option>
+              <option value="gemma3:12b">Gemma 3 12b (8.1GB)</option>
+              <option value="gemma3:27b">Gemma 3 27b (17GB)</option>
+            <option value="phi4:14b">Phi-4 14b (9.1GB)</option>
             <option value="qwq">QwQ (20GB)</option>
           </select>
           <button id="clearButton">Clear Chat</button>

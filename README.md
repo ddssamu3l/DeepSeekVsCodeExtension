@@ -1,5 +1,8 @@
-# DeepSeekVsCodeExtension | <a href="https://youtu.be/0bjnZnhsjqo">YouTube Demo</a>
-- This is a Vs Code extension that runs all versions of Ollama's DeepSeek R1 model locally. The user may interact with the model via a chat interface.
+# LoCopilot - AI Coding Assistant That Runs Locally On Your Computer 
+- This is a AI coding agent Vs Code extension powered by Ollama's latest open-source models
+- The coding agent has full context of the user's opened files and selected texts.
+
+## <a href="https://youtu.be/0bjnZnhsjqo">YouTube Demo</a>
 
 
   

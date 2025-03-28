@@ -41,4 +41,5 @@ function markdownToHTML(markdown) {
     html = html.replace(/<\/think>/g, '</p>');
     return html;
 }
+67;
 //# sourceMappingURL=markdownConverter.js.map

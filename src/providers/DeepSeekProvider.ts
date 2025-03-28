@@ -283,7 +283,7 @@ export default class DeepSeekViewProvider implements vscode.WebviewViewProvider 
         this._conversationHistory = await this._streamOllamaResponse(this._conversationHistory);
         // turn the full prompt back to the original user prompt to reduce conversation size.
         this._conversationHistory[this._conversationHistory.length-2].content = userPrompt;
-        console.log("Finished streaming response from Ollama");
+        console.log("Finished streaming response from: " + this._currentModel);
 
         // Set the status as completed
         this._view.webview.postMessage({

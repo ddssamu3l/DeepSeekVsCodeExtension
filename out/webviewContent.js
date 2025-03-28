@@ -86,7 +86,7 @@ function getWebviewContent() {
           <div class="status" id="status"></div>
           <textarea id="userPrompt" placeholder="Ask DeepSeek anything..."></textarea>
           <div class="button-row">
-            <button id="askButton">Ask DeepSeek</button>
+            <button id="askButton">Send Prompt</button>
           </div>
         </div>
       </div>
@@ -103,22 +103,59 @@ function getWebviewContent() {
         const markdownToHTML = ${markdownToHTMLFunctionString};
 
         // Ready state
-        const initialStatusElem = document.getElementById("status");
-        if (initialStatusElem) {
-          initialStatusElem.textContent = "Ready for prompting";
-        } else {
-          console.log("ERROR: status element not found during initial ready state!");
-        }
-        
-        // Trigger model check on initial load
         const modelSelector = document.getElementById("model-selector");
-        if (modelSelector) {
-          const modelName = modelSelector.value;
-          checkSelectedModel(modelName);
+        const userPrompt = document.getElementById("userPrompt");
+        let selectedModelName = modelSelector.value;
+        let modelIsInstalled = checkSelectedModel("deepseek-r1:8b"); // tracks whether the user's machine has installed the current selected model
+        let isStreamingResponse = false; // tracks whether the extension is currently streaming a response from ollama
+        const askButtonElem = document.getElementById("askButton");
+        const clearButtonElem = document.getElementById("clearButton");
+        const statusElem = document.getElementById("status");
+
+        if(askButtonElem){
+          askButtonElem.textContent = "Send Prompt"
+        }else{
+          console.error("ERROR: ask button not found during initial ready state");
+        }
+        if(clearButtonElem){
+          clearButtonElem.textContent = "Clear Chat"
+        }else{
+          console.error("ERROR: clear button not found during initial ready state");
+        }
+        if (statusElem) {
+          statusElem.textContent = "Ready for prompting";
+        } else {
+          console.error("ERROR: status element not found during initial ready state!");
         }
         /**************************** END OF INITIAL SETUP AND CHECKS *******************************/
 
         /**************************** JS FUNCTIONS *************************************/
+        function updateUI(){
+          if (!modelIsInstalled) {
+            askButtonElem.disabled = true;
+            statusElem.textContent =
+              'Error: selected model is not installed on your machine. ' +
+              'Please install the current model with Ollama by running: "ollama pull ' + selectedModelName + '" or select a different model';
+            statusElem.style.color = "red";
+            clearButtonElem.disabled = isStreamingResponse;
+            return;
+          }
+
+          // Model is installed
+          statusElem.style.color = "";
+
+          if (isStreamingResponse) {
+            statusElem.textContent = "Streaming response...";
+            askButtonElem.textContent = "Generating...";
+            askButtonElem.disabled = true;
+            clearButtonElem.disabled = true;
+          } else {
+            statusElem.textContent = "Ready for prompting";
+            askButtonElem.textContent = "Send Prompt";
+            askButtonElem.disabled = false;
+            clearButtonElem.disabled = false;
+          }
+        }
         // Check if a DeepSeek model is installed in Ollama
         async function modelInstalled(modelName) {          
           try {
@@ -154,26 +191,10 @@ function getWebviewContent() {
 
         async function checkSelectedModel(modelName){
           try {
-            const isInstalled = await modelInstalled(modelName);
-            
-            const statusElem = document.getElementById("status");
-            const askButtonElem = document.getElementById("askButton");
-            const clearButtonElem = document.getElementById("clearButton");
-            
-            if (!isInstalled) {
-              if (statusElem) {
-                statusElem.textContent = 'Error: selected model is not installed on your machine. Please install the current model with Ollama by running: "ollama pull ' + modelName + '" or select a different model';
-                statusElem.style.color = "red";
-              }
-              if (askButtonElem) askButtonElem.disabled = true;
-              if (clearButtonElem) clearButtonElem.disabled = true;
-            } else {
-              if (statusElem) {
-                statusElem.textContent = "Ready for prompting";
-                statusElem.style.color = "";
-              }
-              if (askButtonElem) askButtonElem.disabled = false;
-              if (clearButtonElem) clearButtonElem.disabled = false;
+            modelIsInstalled = await modelInstalled(modelName);
+
+            updateUI();
+            if(modelIsInstalled){
               vscode.postMessage({ command: 'setModel', modelName: modelName });
             }
           } catch (error) {
@@ -284,47 +305,38 @@ function getWebviewContent() {
             
             const select = event.target;
             if(!select) return;
-            const modelName = select.value;
-            if(!modelName) return;
+            selectedModelName = select.value;
+            if(!selectedModelName) return;
             
-            checkSelectedModel(modelName);
+            checkSelectedModel(selectedModelName);
           });
 
           // Handle Ask button click
           document.getElementById("askButton").addEventListener("click", () => {
-            const userPrompt = document.getElementById("userPrompt").value.trim();
+
+            const userTextPrompt = userPrompt.value.trim();
             if (!userPrompt) {
               document.getElementById("status").textContent = "Please enter a prompt first";
               return;
             }
+            userPrompt.value = "";
             
             // Add user message to the chat
-            addMessage('user', userPrompt);
+            addMessage('user', userTextPrompt);
             // Add a new streaming div for the ai to stream its response in
             addMessage('assistant', 'Processing your request...');
-            
-            document.getElementById("status").textContent = "Sending request to DeepSeek...";
-            document.getElementById("askButton").textContent = "Generating...";
-            document.getElementById("askButton").disabled = true;
-            document.getElementById("clearButton").disabled = true;
-            document.getElementById("userPrompt").value = "";
-            
-            try {
-              vscode.postMessage({ command: 'userPrompt', text: userPrompt });
-            } catch (err) {
-              document.getElementById("status").textContent = "Error sending request: " + err.message;
-            }
+
+            isStreamingResponse = true;
+
+            updateUI();
+            vscode.postMessage({ command: 'userPrompt', text: userTextPrompt });
           });
           
           // Handle Clear button click
           document.getElementById("clearButton").addEventListener("click", () => {
             clearChat();
             vscode.postMessage({ command: 'clearConversation' });
-            document.getElementById("status").textContent = "Conversation cleared";
-            document.getElementById("askButton").textContent = "Ask DeepSeek";
-            setTimeout(() => {
-              document.getElementById("status").textContent = "Ready for prompting";
-            }, 3000);
+            updateUI();
           });
           
           // Also handle Enter key to submit (Shift+Enter for new line)
@@ -346,11 +358,6 @@ function getWebviewContent() {
               }else{
                 console.error("Error: No text provided in chatResponse command");
               }
-              const statusElem = document.getElementById("status");
-              if (statusElem) {
-                statusElem.style.color = "";
-                statusElem.textContent = "Receiving response...";
-              }
             }
             else if (command === "chatCompletion") {
               const container = document.getElementById('chatContainer');
@@ -361,20 +368,8 @@ function getWebviewContent() {
                 lastAssistantMessage.id = "assistant-message-" + Date.now();
               }
 
-              const askButtonElem = document.getElementById("askButton");
-              const statusElem = document.getElementById("status");
-              const clearButtonElem = document.getElementById("clearButton");
-              
-              if (askButtonElem) askButtonElem.textContent = "Ask DeepSeek";
-              if (statusElem){statusElem.textContent = "Response completed!"; statusElem.style.color = "";}
-              if (askButtonElem) askButtonElem.disabled = false;
-              if (clearButtonElem) clearButtonElem.disabled = false;          
-
-              // Reset the status after 3 seconds
-              setTimeout(() => {
-                const statusElem = document.getElementById("status");
-                if (statusElem) statusElem.textContent = "Ready for prompting";
-              }, 3000);
+              isStreamingResponse = false;
+              updateUI();
             }
             else if (command === "loadConversation") {
               // Load an existing conversation

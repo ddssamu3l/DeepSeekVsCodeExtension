@@ -38,7 +38,7 @@ const markdownConverter_1 = require("./utils/markdownConverter");
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
 /**
- * Generates the HTML content for the DeepSeek extension webview.
+ * Generates the HTML content for the LoCopilot extension webview.
  * This includes the HTML structure, CSS styles, and JavaScript code for the chat interface.
  * @function getWebviewContent
  * @returns {string} HTML content for the webview
@@ -56,7 +56,7 @@ function getWebviewContent() {
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline';">
-      <title>DeepSeek Chat</title>
+      <title>LoCopilot Chat</title>
       <style>
         ${cssContent}
       </style>
@@ -81,13 +81,13 @@ function getWebviewContent() {
         </div>
         
         <div class="chat-container" id="chatContainer">
-          <div class="welcome-message">Welcome to DeepSeek R1! Enter a prompt to start chatting.</div>
+          <div class="welcome-message">Welcome to LoCopilot! Enter a prompt to start chatting.</div>
           <div id="loading"><div class="spinner"></div></div>
         </div>
         
         <div class="input-area">
           <div class="status" id="status"></div>
-          <textarea id="userPrompt" placeholder="Ask DeepSeek anything..."></textarea>
+          <textarea id="userPrompt" placeholder="Ask LoCopilot anything..."></textarea>
           <div class="button-row">
             <button id="askButton">Send Prompt</button>
           </div>
@@ -96,7 +96,7 @@ function getWebviewContent() {
 
       <script>
         /**************************** INITIAL SETUP AND CHECKS *************************************/
-        const welcomeMessage = "Welcome to DeepSeek R1! Enter a prompt to start chatting.";
+        const welcomeMessage = "Welcome to LoCopilot! Enter a prompt to start chatting.";
 
         // Acquire VSCode API
         const vscode =  acquireVsCodeApi();
@@ -159,7 +159,7 @@ function getWebviewContent() {
             clearButtonElem.disabled = false;
           }
         }
-        // Check if a DeepSeek model is installed in Ollama
+        // Check if a model is installed in Ollama
         async function modelInstalled(modelName) {          
           try {
             // Send message to extension host to check if model is installed
@@ -300,7 +300,7 @@ function getWebviewContent() {
           // Set initial heights
           adjustHeight();
 
-          // Handle model-selector. Check whether the selected DeepSeek model is installed. If not, give a warning.
+          // Handle model-selector. Check whether the selected model is installed. If not, give a warning.
           document.getElementById("model-selector").addEventListener("change", async (event) => {
             if(!event || !event.target) {
               return;
@@ -386,7 +386,7 @@ function getWebviewContent() {
           console.error('Fatal error:', err);
           document.body.innerHTML = \`
             <div style="color:red;padding:20px;">
-              <h3>Error Initializing DeepSeek Chat</h3>
+              <h3>Error Initializing LoCopilot Chat</h3>
               <p>\${err.message}</p>
               <pre>\${err.stack}</pre>
             </div>

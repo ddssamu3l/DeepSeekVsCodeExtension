@@ -17,11 +17,11 @@ interface Message {
 }
 
 /**
- * Provider class for the DeepSeek VS Code extension.
+ * Provider class for the LoCopilot VS Code extension.
  * Handles the webview, conversation history, and communication with Ollama.
  * @implements {vscode.WebviewViewProvider}
  */
-export default class DeepSeekViewProvider implements vscode.WebviewViewProvider {
+export default class LoCopilotViewProvider implements vscode.WebviewViewProvider {
   /** The current webview instance */
   private _view?: vscode.WebviewView;
   /** History of messages in the current conversation */
@@ -32,7 +32,7 @@ export default class DeepSeekViewProvider implements vscode.WebviewViewProvider 
   private _editor: vscode.TextEditor | undefined;
 
   /**
-   * Creates a new instance of DeepSeekViewProvider.
+   * Creates a new instance of LoCopilotViewProvider.
    * @param {vscode.Uri} _extensionUri - The URI of the extension directory
    */
   constructor(private readonly _extensionUri: vscode.Uri) {
@@ -86,14 +86,14 @@ export default class DeepSeekViewProvider implements vscode.WebviewViewProvider 
         } else if (message.command === "checkModelInstalled") {
           await this._checkModelInstalled(message.modelName);
         } else if (message.command === "setModel") {
-          console.log("DeepSeek model set to: " + message.modelName);
+          console.log("LoCopilot model set to: " + message.modelName);
           this._currentModel = message.modelName;
         }
       });
     } catch (error) {
       console.error("Error initializing webview:", error);
       vscode.window.showErrorMessage(
-        `DeepSeek webview initialization failed: ${
+        `LoCopilot webview initialization failed: ${
           error instanceof Error ? error.message : String(error)
         }`
       );
@@ -126,7 +126,7 @@ export default class DeepSeekViewProvider implements vscode.WebviewViewProvider 
     } catch (error) {
       console.error("Error setting webview HTML:", error);
       vscode.window.showErrorMessage(
-        `DeepSeek failed to render content: ${
+        `LoCopilot failed to render content: ${
           error instanceof Error ? error.message : String(error)
         }`
       );
@@ -331,7 +331,7 @@ export default class DeepSeekViewProvider implements vscode.WebviewViewProvider 
       }
 
       vscode.window.showErrorMessage(
-        "DeepSeek error: " +
+        "LoCopilot error: " +
           (error instanceof Error ? error.message : String(error))
       );
     }

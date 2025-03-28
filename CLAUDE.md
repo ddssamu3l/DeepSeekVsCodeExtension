@@ -1,4 +1,4 @@
-# DeepSeek-Ext VS Code Extension
+# LoCopilot VS Code Extension
 
 ## Build & Development Commands
 - `npm run compile`: Compiles TypeScript code

@@ -1,6 +1,6 @@
 {
-  "name": "deepseek-ext",
-  "displayName": "DeepSeek R1 Extension",
+  "name": "locopilot-ext",
+  "displayName": "LoCopilot Extension",
   "description": "",
   "icon": "media/icon.png",
   "version": "0.0.1",
@@ -17,25 +17,25 @@
   "contributes": {
     "commands": [
       {
-        "command": "deepseek-ext.openView",
-        "title": "Open DeepSeek Chat View"
+        "command": "locopilot-ext.openView",
+        "title": "Open LoCopilot Chat View"
       }
     ],
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "deepseek-ext",
-          "title": "DeepSeek R1 Extension",
+          "id": "locopilot-ext",
+          "title": "LoCopilot Extension",
           "icon": "media/file.svg"
         }
       ]
     },
     "views": {
-      "deepseek-ext": [
+      "locopilot-ext": [
         {
           "type": "webview",
-          "id": "deepseek-ext.view",
-          "name": "DeepSeek Chat By DD",
+          "id": "locopilot-ext.view",
+          "name": "LoCopilot Chat",
           "when": "workbenchState == 'workspace' || workbenchState == 'folder'"
         }
       ]

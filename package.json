@@ -3,6 +3,10 @@
   "displayName": "LoCopilot Extension",
   "description": "",
   "icon": "media/icon.png",
+  "galleryBanner.color":{
+    "color": "#a8c1ff",
+    "theme": "dark"
+  },
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.96.0"
@@ -62,5 +66,9 @@
   },
   "dependencies": {
     "ollama": "^0.5.12"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode-wordcount.git"
   }
 }

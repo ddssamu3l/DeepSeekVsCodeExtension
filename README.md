@@ -1,4 +1,4 @@
-# LoCopilot - AI Coding Assistant That Runs Locally On Your Computer 
+# LoCopilot - Locally-Running AI Coding Helper
 - This is a AI coding agent Vs Code extension powered by Ollama's latest open-source models
 - The coding agent has full context of the user's opened files and selected texts.
 

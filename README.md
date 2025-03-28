@@ -29,44 +29,5 @@ Select from one of the available models (brackets indicate VRAM usage)
 ollama pull deepseek-r1:8b
 ```
 
-
-## Run the extension
-The easiest way to run this extension is to run a debug window from VsCode. 
-
-After opening the extension's project directory, start debugging with: 
-- Windows/Linux: F5
-- Mac: Fn + F5
-
-After that, the extension should be **running** in the new debug window!
-
-**NOTE:** After you open a debug window, you must open a file in order for the extension to appear in the activity sidebar.
-
-
-## Install the extension to your VS Code
-To install the extension, run this command from the project directory's terminal:
-```
-vsce package
-```
-This command creates a .vsix file in your extension's root folder. For example, my-extension-0.0.1.vsix.
-
-For users, to install a .vsix file in VS Code:
-
-From the Extensions view in VS Code:
-
-1. Go to the Extensions view.
-2. Select Views and More Actions...
-3. Select Install from VSIX...
-4. From the command line:
-
-```
-# if you use VS Code
-code --install-extension my-extension-0.0.1.vsix
-
-# if you use VS Code Insiders
-code-insiders --install-extension my-extension-0.0.1.vsix
-```
-
-For more information, visit VsCode's official documentation on <a href="https://code.visualstudio.com/api/working-with-extensions/publishing-extension#packaging-extensions">testing and publishing</a> extensions.
-
 ## Support
 For any issues with the extension, reach out to us directly at samueldeng78@gmail.com

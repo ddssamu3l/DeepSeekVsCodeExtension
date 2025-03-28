@@ -14,8 +14,7 @@ export default function getWebviewContent(): string {
   const markdownToHTMLFunctionString = markdownToHTML.toString();
   
   // Read the CSS file
-  const cssPath = path.join(__dirname, '..', 'src', 'styles', 'chatStyles.css');
-  const cssContent = fs.readFileSync(cssPath, 'utf8');
+  const cssContent = fs.readFileSync(`${__dirname}/styles/chatStyles.css`, 'utf8');
 
   return /*html*/ `
     <!DOCTYPE html>

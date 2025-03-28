@@ -36,7 +36,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.default = getWebviewContent;
 const markdownConverter_1 = require("./utils/markdownConverter");
 const fs = __importStar(require("fs"));
-const path = __importStar(require("path"));
 /**
  * Generates the HTML content for the LoCopilot extension webview.
  * This includes the HTML structure, CSS styles, and JavaScript code for the chat interface.
@@ -47,8 +46,7 @@ function getWebviewContent() {
     // import the markdownToHTML helper and convert it into a string. We will inject it to a <script> tag later.
     const markdownToHTMLFunctionString = markdownConverter_1.markdownToHTML.toString();
     // Read the CSS file
-    const cssPath = path.join(__dirname, '..', 'src', 'styles', 'chatStyles.css');
-    const cssContent = fs.readFileSync(cssPath, 'utf8');
+    const cssContent = fs.readFileSync(`${__dirname}/styles/chatStyles.css`, 'utf8');
     return /*html*/ `
     <!DOCTYPE html>
     <html lang="en">

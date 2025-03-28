@@ -66,3 +66,6 @@ code-insiders --install-extension my-extension-0.0.1.vsix
 ```
 
 For more information, visit VsCode's official documentation on <a href="https://code.visualstudio.com/api/working-with-extensions/publishing-extension#packaging-extensions">testing and publishing</a> extensions.
+
+## Support
+For any issues with the extension, reach out to us directly at samueldeng78@gmail.com

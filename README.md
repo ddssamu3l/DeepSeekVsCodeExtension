@@ -1,6 +1,7 @@
 # DeepSeekVsCodeExtension | <a href="https://youtu.be/0bjnZnhsjqo">YouTube Demo</a>
 - This is a Vs Code extension that runs all versions of Ollama's DeepSeek R1 model locally. The user may interact with the model via a chat interface.
 
+
   
 ## Getting Started
 Install Ollama from the download link: <a href="https://ollama.com/download">https://ollama.com/download</a>

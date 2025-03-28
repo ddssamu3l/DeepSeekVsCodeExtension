@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 /**
- * Generates the HTML content for the DeepSeek extension webview.
+ * Generates the HTML content for the LoCopilot extension webview.
  * This includes the HTML structure, CSS styles, and JavaScript code for the chat interface.
  * @function getWebviewContent
  * @returns {string} HTML content for the webview
@@ -24,7 +24,7 @@ export default function getWebviewContent(): string {
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline';">
-      <title>DeepSeek Chat</title>
+      <title>LoCopilot Chat</title>
       <style>
         ${cssContent}
       </style>
@@ -34,34 +34,37 @@ export default function getWebviewContent(): string {
         <div class="header">
           <select class="model-selector" name="model-selector" id="model-selector">
             <option value="deepseek-r1:1.5b">DeepSeek R1 1.5b (1.5GB)</option>
-            <option value="deepseek-r1:7b">DeepSeek R1 7b (4.7GB)</option>
-            <option value="deepseek-r1:8b" selected>DeepSeek R1 8b (4.9GB)</option>
-            <option value="deepseek-r1:14b">DeepSeek R1 14b (9GB)</option>
-            <option value="deepseek-r1:32b">DeepSeek R1 32b (20GB)</option>
-            <option value="deepseek-r1:70b">DeepSeek R1 70b (43GB)</option>
-            <option value="deepseek-r1:671b">DeepSeek R1 671b (404GB)</option>
+              <option value="deepseek-r1:8b" selected>DeepSeek R1 8b (4.9GB)</option>
+              <option value="deepseek-r1:14b">DeepSeek R1 14b (9GB)</option>
+              <option value="deepseek-r1:32b">DeepSeek R1 32b (20GB)</option>
+              <option value="deepseek-r1:70b">DeepSeek R1 70b (43GB)</option>
+            <option value="gemma3:1b">Gemma 3 1b (815MB)</option>
+              <option value="gemma3:4b">Gemma 3 4b (3.3GB)</option>
+              <option value="gemma3:12b">Gemma 3 12b (8.1GB)</option>
+              <option value="gemma3:27b">Gemma 3 27b (17GB)</option>
+            <option value="phi4:14b">Phi-4 14b (9.1GB)</option>
             <option value="qwq">QwQ (20GB)</option>
           </select>
           <button id="clearButton">Clear Chat</button>
         </div>
         
         <div class="chat-container" id="chatContainer">
-          <div class="welcome-message">Welcome to DeepSeek R1! Enter a prompt to start chatting.</div>
+          <div class="welcome-message">Welcome to LoCopilot! Enter a prompt to start chatting.</div>
           <div id="loading"><div class="spinner"></div></div>
         </div>
         
         <div class="input-area">
           <div class="status" id="status"></div>
-          <textarea id="userPrompt" placeholder="Ask DeepSeek anything..."></textarea>
+          <textarea id="userPrompt" placeholder="Ask LoCopilot anything..."></textarea>
           <div class="button-row">
-            <button id="askButton">Ask DeepSeek</button>
+            <button id="askButton">Send Prompt</button>
           </div>
         </div>
       </div>
 
       <script>
         /**************************** INITIAL SETUP AND CHECKS *************************************/
-        const welcomeMessage = "Welcome to DeepSeek R1! Enter a prompt to start chatting.";
+        const welcomeMessage = "Welcome to LoCopilot! Enter a prompt to start chatting.";
 
         // Acquire VSCode API
         const vscode =  acquireVsCodeApi();
@@ -71,23 +74,60 @@ export default function getWebviewContent(): string {
         const markdownToHTML = ${markdownToHTMLFunctionString};
 
         // Ready state
-        const initialStatusElem = document.getElementById("status");
-        if (initialStatusElem) {
-          initialStatusElem.textContent = "Ready for prompting";
-        } else {
-          console.log("ERROR: status element not found during initial ready state!");
-        }
-        
-        // Trigger model check on initial load
         const modelSelector = document.getElementById("model-selector");
-        if (modelSelector) {
-          const modelName = modelSelector.value;
-          checkSelectedModel(modelName);
+        const userPrompt = document.getElementById("userPrompt");
+        let selectedModelName = modelSelector.value;
+        let modelIsInstalled = checkSelectedModel("deepseek-r1:8b"); // tracks whether the user's machine has installed the current selected model
+        let isStreamingResponse = false; // tracks whether the extension is currently streaming a response from ollama
+        const askButtonElem = document.getElementById("askButton");
+        const clearButtonElem = document.getElementById("clearButton");
+        const statusElem = document.getElementById("status");
+
+        if(askButtonElem){
+          askButtonElem.textContent = "Send Prompt"
+        }else{
+          console.error("ERROR: ask button not found during initial ready state");
+        }
+        if(clearButtonElem){
+          clearButtonElem.textContent = "Clear Chat"
+        }else{
+          console.error("ERROR: clear button not found during initial ready state");
+        }
+        if (statusElem) {
+          statusElem.textContent = "Ready for prompting";
+        } else {
+          console.error("ERROR: status element not found during initial ready state!");
         }
         /**************************** END OF INITIAL SETUP AND CHECKS *******************************/
 
         /**************************** JS FUNCTIONS *************************************/
-        // Check if a DeepSeek model is installed in Ollama
+        function updateUI(){
+          if (!modelIsInstalled) {
+            askButtonElem.disabled = true;
+            statusElem.textContent =
+              'Error: selected model is not installed on your machine. ' +
+              'Please install the current model with Ollama by running: "ollama pull ' + selectedModelName + '" or select a different model';
+            statusElem.style.color = "red";
+            clearButtonElem.disabled = isStreamingResponse;
+            return;
+          }
+
+          // Model is installed
+          statusElem.style.color = "";
+
+          if (isStreamingResponse) {
+            statusElem.textContent = "Streaming response...";
+            askButtonElem.textContent = "Generating...";
+            askButtonElem.disabled = true;
+            clearButtonElem.disabled = true;
+          } else {
+            statusElem.textContent = "Ready for prompting";
+            askButtonElem.textContent = "Send Prompt";
+            askButtonElem.disabled = false;
+            clearButtonElem.disabled = false;
+          }
+        }
+        // Check if a model is installed in Ollama
         async function modelInstalled(modelName) {          
           try {
             // Send message to extension host to check if model is installed
@@ -122,26 +162,10 @@ export default function getWebviewContent(): string {
 
         async function checkSelectedModel(modelName){
           try {
-            const isInstalled = await modelInstalled(modelName);
-            
-            const statusElem = document.getElementById("status");
-            const askButtonElem = document.getElementById("askButton");
-            const clearButtonElem = document.getElementById("clearButton");
-            
-            if (!isInstalled) {
-              if (statusElem) {
-                statusElem.textContent = 'Error: selected model is not installed on your machine. Please install the current model with Ollama by running: "ollama pull ' + modelName + '" or select a different model';
-                statusElem.style.color = "red";
-              }
-              if (askButtonElem) askButtonElem.disabled = true;
-              if (clearButtonElem) clearButtonElem.disabled = true;
-            } else {
-              if (statusElem) {
-                statusElem.textContent = "Ready for prompting";
-                statusElem.style.color = "";
-              }
-              if (askButtonElem) askButtonElem.disabled = false;
-              if (clearButtonElem) clearButtonElem.disabled = false;
+            modelIsInstalled = await modelInstalled(modelName);
+
+            updateUI();
+            if(modelIsInstalled){
               vscode.postMessage({ command: 'setModel', modelName: modelName });
             }
           } catch (error) {
@@ -178,7 +202,7 @@ export default function getWebviewContent(): string {
           // User message can have a date id assigned immediately since they will only be added once
           // Assistant messages are constantly streamed so they will get an id when the "chatCompletion" command is activated
           if (role === 'assistant') {
-            messageDiv.id = 'current-streaming-message';
+            messageDiv.id = "assistant-message";
             messageDiv.innerHTML = markdownToHTML(content);
           }else{
             messageDiv.textContent = content;
@@ -202,15 +226,20 @@ export default function getWebviewContent(): string {
         // Update the current streaming assistant message (identified by thinking indicator)
         // 'content' is the markdown text returned by the AI. We will convert it to HTML text and render it as HTML
         function updateCurrentStreamingMessage(content) {
-          // Look for the current streaming message
-          const streamingMsg = document.getElementById('current-streaming-message');
-          if (streamingMsg) {
+          // Select the chat container
+          const container = document.getElementById('chatContainer');
+          
+          // select the last message in the chat container (which should be an assistant messaage), and stream in the new content
+          if (container && container.lastElementChild) {
+            const streamingMsg = container.lastElementChild;
+
+            if (streamingMsg) {
             streamingMsg.innerHTML = markdownToHTML(content);
+            }
           } else {
             // If somehow it doesn't exist, just add a new message
             console.log("updateCurrentStreamingMessage() could not find current-streaming-message div. Creating a new current-streaming-message div");
             var messageDiv = addMessage('assistant', content);
-            messageDiv.id = 'current-streaming-message';
           }
           
           // Scroll to bottom
@@ -239,7 +268,7 @@ export default function getWebviewContent(): string {
           // Set initial heights
           adjustHeight();
 
-          // Handle model-selector. Check whether the selected DeepSeek model is installed. If not, give a warning.
+          // Handle model-selector. Check whether the selected model is installed. If not, give a warning.
           document.getElementById("model-selector").addEventListener("change", async (event) => {
             if(!event || !event.target) {
               return;
@@ -247,47 +276,38 @@ export default function getWebviewContent(): string {
             
             const select = event.target;
             if(!select) return;
-            const modelName = select.value;
-            if(!modelName) return;
+            selectedModelName = select.value;
+            if(!selectedModelName) return;
             
-            checkSelectedModel(modelName);
+            checkSelectedModel(selectedModelName);
           });
 
           // Handle Ask button click
           document.getElementById("askButton").addEventListener("click", () => {
-            const userPrompt = document.getElementById("userPrompt").value.trim();
+
+            const userTextPrompt = userPrompt.value.trim();
             if (!userPrompt) {
               document.getElementById("status").textContent = "Please enter a prompt first";
               return;
             }
+            userPrompt.value = "";
             
             // Add user message to the chat
-            addMessage('user', userPrompt);
+            addMessage('user', userTextPrompt);
             // Add a new streaming div for the ai to stream its response in
-            addMessage('assistant', 'Processing your request with DeepSeek R1...');
-            
-            document.getElementById("status").textContent = "Sending request to DeepSeek...";
-            document.getElementById("askButton").textContent = "Generating...";
-            document.getElementById("askButton").disabled = true;
-            document.getElementById("clearButton").disabled = true;
-            document.getElementById("userPrompt").value = "";
-            
-            try {
-              vscode.postMessage({ command: 'userPrompt', text: userPrompt });
-            } catch (err) {
-              document.getElementById("status").textContent = "Error sending request: " + err.message;
-            }
+            addMessage('assistant', 'Processing your request...');
+
+            isStreamingResponse = true;
+
+            updateUI();
+            vscode.postMessage({ command: 'userPrompt', text: userTextPrompt });
           });
           
           // Handle Clear button click
           document.getElementById("clearButton").addEventListener("click", () => {
             clearChat();
             vscode.postMessage({ command: 'clearConversation' });
-            document.getElementById("status").textContent = "Conversation cleared";
-            document.getElementById("askButton").textContent = "Ask DeepSeek";
-            setTimeout(() => {
-              document.getElementById("status").textContent = "Ready for prompting";
-            }, 3000);
+            updateUI();
           });
           
           // Also handle Enter key to submit (Shift+Enter for new line)
@@ -307,33 +327,20 @@ export default function getWebviewContent(): string {
               if(text){
                 updateCurrentStreamingMessage(text);
               }else{
-                updateCurrentStreamingMessage("Processing your request with DeepSeek R1...");
-              }
-              const statusElem = document.getElementById("status");
-              if (statusElem) {
-                statusElem.textContent = "Receiving response...";
+                console.error("Error: No text provided in chatResponse command");
               }
             }
             else if (command === "chatCompletion") {
-              // set the current streaming div as a regular completed message div
-              var currentStreamingMessage = document.getElementById("current-streaming-message");
-              if(currentStreamingMessage) currentStreamingMessage.id = 'assistant-message-' + Date.now();
-              else console.error("Failed to find current streaming div");
+              const container = document.getElementById('chatContainer');
 
-              const askButtonElem = document.getElementById("askButton");
-              const statusElem = document.getElementById("status");
-              const clearButtonElem = document.getElementById("clearButton");
-              
-              if (askButtonElem) askButtonElem.textContent = "Ask DeepSeek";
-              if (statusElem) statusElem.textContent = "Response completed!";
-              if (askButtonElem) askButtonElem.disabled = false;
-              if (clearButtonElem) clearButtonElem.disabled = false;             
+              if(container && container.lastElementChild){
+                const lastAssistantMessage = container.lastElementChild;
+                lastAssistantMessage.innerHTML = markdownToHTML(text);
+                lastAssistantMessage.id = "assistant-message-" + Date.now();
+              }
 
-              // Reset the status after 3 seconds
-              setTimeout(() => {
-                const statusElem = document.getElementById("status");
-                if (statusElem) statusElem.textContent = "Ready for prompting";
-              }, 3000);
+              isStreamingResponse = false;
+              updateUI();
             }
             else if (command === "loadConversation") {
               // Load an existing conversation
@@ -347,7 +354,7 @@ export default function getWebviewContent(): string {
           console.error('Fatal error:', err);
           document.body.innerHTML = \`
             <div style="color:red;padding:20px;">
-              <h3>Error Initializing DeepSeek Chat</h3>
+              <h3>Error Initializing LoCopilot Chat</h3>
               <p>\${err.message}</p>
               <pre>\${err.stack}</pre>
             </div>

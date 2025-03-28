@@ -325,4 +325,4 @@ class LoCopilotViewProvider {
     }
 }
 exports.default = LoCopilotViewProvider;
-//# sourceMappingURL=DeepSeekProvider.js.map
+//# sourceMappingURL=LoCopilotProvider.js.map

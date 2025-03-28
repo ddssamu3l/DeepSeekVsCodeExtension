@@ -18,15 +18,13 @@ curl -fsSL https://ollama.com/install.sh | sh
 After installing Ollama, be sure to install at least 1 model before running the extension.
 
 Select from one of the available models (brackets indicate VRAM usage)
-- 1.5b (1.1GB)
-- 7b   (4.7GB)
-- 8b   (4.9GB)
-- 14b  (9.0GB)
-- 32b  (20GB)
-- 70b  (43GB)
-- 671b (404GB)
+- DeepSeek R1 8b   (4.9GB)
+- DeepSeek R1 70b  (43GB)
+- Gemma 3 4b (3.3GB)
+- Gemma 3 27b (17GB)
+- QwQ (20GB)
 
-### Example (default model: 8b)
+### Example (default model: DeepSeek R1 8b)
 ```
 ollama pull deepseek-r1:8b
 ```

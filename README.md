@@ -1,12 +1,18 @@
-# LoCopilot - Locally-Running AI Coding Helper
-- This is a AI coding agent Vs Code extension powered by Ollama's latest open-source models
-- The coding agent has full context of the user's opened files and selected texts.
+# LoCopilot - Locally-Running AI Copilot
 
 ## <a href="https://youtu.be/0bjnZnhsjqo">YouTube Demo</a>
 
+## ✨ Features
+- ### 🤖 Local LLM Coding Assistant
+* Latest open-source reasoning models from DeepSeek, Google, Qwen, Microsoft...
+* Model switching without context loss
+* Thought streaming
+- ### Advanced Context Loading
+* Opened files are automatically added to context
+* LoCopilot can see user elected text 
 
   
-## Getting Started
+## 🚀 Getting Started
 Install Ollama from the download link: <a href="https://ollama.com/download">https://ollama.com/download</a>
 
 Alternitively, install it manually
@@ -14,7 +20,7 @@ Alternitively, install it manually
 curl -fsSL https://ollama.com/install.sh | sh
 ```
 
-## Next Steps
+## 💡 Next Steps
 After installing Ollama, be sure to install at least 1 model before running the extension.
 
 Select from one of the available models (brackets indicate VRAM usage)
@@ -24,10 +30,10 @@ Select from one of the available models (brackets indicate VRAM usage)
 - Gemma 3 27b (17GB)
 - QwQ (20GB)
 
-### Example (default model: DeepSeek R1 8b)
+### 📝 Example (default model: DeepSeek R1 8b)
 ```
 ollama pull deepseek-r1:8b
 ```
 
-## Support
+## ❤️ Support
 For any issues with the extension, reach out to us directly at samueldeng78@gmail.com

@@ -1,19 +1,52 @@
 {
   "name": "locopilot-ext",
-  "displayName": "LoCopilot Extension",
+  "displayName": "LoCopilot",
   "publisher": "RainSong",
-  "description": "LoCopilot is an locally-powered AI Coding assistant.",
+  "description": "LoCopilot is an locally-powered AI coding assistant.",
   "icon": "media/icon.png",
   "galleryBanner.color":{
     "color": "#a8c1ff",
     "theme": "dark"
   },
-  "version": "0.0.2",
+  "version": "0.0.4",
   "engines": {
     "vscode": "^1.96.0"
   },
   "categories": [
-    "Other"
+    "AI",
+    "Education",
+    "Machine Learning",
+    "Programming Languages",
+    "Snippets"
+  ],
+  "keywords": [
+    "AI",
+    "AI assistant",
+    "AI code snippets",
+    "AI copilot",
+    "assistant",
+    "c",
+    "c++",
+    "code hinting",
+    "code suggestion",
+    "content assist",
+    "css",
+    "documentation",
+    "go",
+    "golang",
+    "html",
+    "java",
+    "javascript",
+    "local llm",
+    "node",
+    "node.js",
+    "ollama",
+    "python",
+    "rag",
+    "react",
+    "retreival augmented generation",
+    "snippets",
+    "typescript"
   ],
   "activationEvents": [
     "onStartupFinished"

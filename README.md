@@ -1,4 +1,4 @@
-# LoCopilot - Open Source Locally-Running AI Copilot.
+# LoCopilot - Open Source Locally-Running AI Copilot
 
 ![alt text](LoCopilot_gif.gif)
 

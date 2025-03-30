@@ -1,6 +1,6 @@
-# LoCopilot - Locally-Running AI Copilot
+# LoCopilot - Locally-Running AI Copilot. No usage limits, 100% open souce!
 
-## <a href="https://youtu.be/0bjnZnhsjqo">YouTube Demo</a>
+![alt text](LoCopilot_gif.gif)
 
 ## ✨ Features
 - ### 🤖 Local LLM Coding Assistant

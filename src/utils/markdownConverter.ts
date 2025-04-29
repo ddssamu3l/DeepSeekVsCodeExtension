@@ -11,12 +11,16 @@ export function markdownToHTML(markdown: string): string {
     .replace(/>/g, '&gt;');
 
   // Handle LaTeX-style math: block math \[...\] and inline math \(...\)
-  html = html.replace(/\\\[(.*?)\\\]/gs, '<div class="math-block">\\[$1\\]</div>');
-  html = html.replace(/\\\((.+?)\\\)/gs, '<span class="math-inline">\\($1\\)</span>');
+  html = html.replace(/\[(.*?)\]/gs, '<div class="math-block">\[$1\]</div>');
+  html = html.replace(/\((.+?)\)/gs, '<span class="math-inline">\($1\)</span>');
 
-  // Convert code blocks (```language\ncode\n```)
-  html = html.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code) => {
-    return `<pre><code class="language-${lang || 'plaintext'}">${code}</code></pre>`;
+  // Convert code blocks (```language
+code
+```)
+  html = html.replace(/```(\w+)?
+([\s\S]*?)```/g, (match, lang, code) => {
+    const escapedCode = code.replace(/"/g, '&quot;').replace(/'/g, '&#39;'); // Escape quotes for data attribute
+    return `<div class="code-block-container" data-code="${escapedCode}"><pre><code class="language-${lang || 'plaintext'}">${code}</code></pre><button class="apply-code-button">Apply</button></div>`;
   });
 
   // Convert inline code (using backticks)
@@ -40,7 +44,8 @@ export function markdownToHTML(markdown: string): string {
   html = html.replace(/^\> (.*)$/gim, '<blockquote>$1</blockquote>');
 
   // Convert remaining newlines to <br> for simple line breaks.
-  html = html.replace(/\n/g, '<br>');
+  html = html.replace(/
+/g, '<br>');
 
   // Convert <think> tags to <p class="think">
   html = html.replace(/<think>/g, '<p class="think">');
@@ -48,4 +53,3 @@ export function markdownToHTML(markdown: string): string {
 
   return html;
 }
-67

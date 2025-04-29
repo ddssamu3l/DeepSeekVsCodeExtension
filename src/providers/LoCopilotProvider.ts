@@ -88,6 +88,8 @@ export default class LoCopilotViewProvider implements vscode.WebviewViewProvider
         } else if (message.command === "setModel") {
           console.log("LoCopilot model set to: " + message.modelName);
           this._currentModel = message.modelName;
+        } else if (message.command === "applyCode") {
+          await this._applyCodeEdit(message.text);
         }
       });
     } catch (error) {
@@ -216,10 +218,14 @@ export default class LoCopilotViewProvider implements vscode.WebviewViewProvider
 
     let fullPrompt = `User prompt: ${userPrompt}`;
     if (fileContent.trim()) {
-      fullPrompt += `\nText content of current file:\n${fileContent}`;
+      fullPrompt += `
+Text content of current file:
+${fileContent}`;
     }
     if (selectedText.trim()) {
-      fullPrompt += `\nSelected text:\n${selectedText}`;
+      fullPrompt += `
+Selected text:
+${selectedText}`;
     }
 
     return fullPrompt;
@@ -334,6 +340,38 @@ export default class LoCopilotViewProvider implements vscode.WebviewViewProvider
         "LoCopilot error: " +
           (error instanceof Error ? error.message : String(error))
       );
+    }
+  }
+
+  /**
+   * Applies a code edit to the active text editor.
+   * @private
+   * @param {string} code - The code snippet to apply.
+   */
+  private async _applyCodeEdit(code: string) {
+    if (!this._editor) {
+      vscode.window.showErrorMessage("No active text editor found.");
+      console.error("Cannot apply code edit - no active editor");
+      return;
+    }
+
+    const editor = this._editor;
+    const document = editor.document;
+
+    try {
+      await editor.edit(editBuilder => {
+        if (!editor.selection.isEmpty) {
+          // If there is a selection, replace it with the new code
+          editBuilder.replace(editor.selection, code);
+        } else {
+          // If there is no selection, insert the code at the current cursor position
+          editBuilder.insert(editor.selection.active, code);
+        }
+      });
+      vscode.window.showInformationMessage("Code applied successfully.");
+    } catch (error) {
+      console.error("Error applying code edit:", error);
+      vscode.window.showErrorMessage(`Failed to apply code edit: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 }

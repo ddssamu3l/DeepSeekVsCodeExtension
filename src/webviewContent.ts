@@ -203,6 +203,8 @@ export default function getWebviewContent(): string {
           if (role === 'assistant') {
             messageDiv.id = "assistant-message";
             messageDiv.innerHTML = markdownToHTML(content);
+            // After rendering markdown, add event listeners to the new apply buttons
+            addApplyButtonListeners();
           }else{
             messageDiv.textContent = content;
             messageDiv.id = "user-message-" + Date.now();
@@ -234,6 +236,8 @@ export default function getWebviewContent(): string {
 
             if (streamingMsg) {
             streamingMsg.innerHTML = markdownToHTML(content);
+             // After updating the content, add event listeners to any new apply buttons
+            addApplyButtonListeners();
             }
           } else {
             // If somehow it doesn't exist, just add a new message
@@ -256,6 +260,24 @@ export default function getWebviewContent(): string {
               }
             });
           }
+        }
+
+        // Add event listeners to all 'Apply' buttons
+        function addApplyButtonListeners() {
+          document.querySelectorAll('.apply-code-button').forEach(button => {
+            button.addEventListener('click', (event) => {
+              const codeBlockContainer = (event.target as HTMLElement).closest('.code-block-container');
+              if (codeBlockContainer) {
+                const code = codeBlockContainer.getAttribute('data-code');
+                if (code) {
+                  vscode.postMessage({
+                    command: 'applyCode',
+                    text: code
+                  });
+                }
+              }
+            });
+          });
         }
         /**************************** END OF JS FUNCTIONS *************************************/
         
@@ -336,6 +358,8 @@ export default function getWebviewContent(): string {
                 const lastAssistantMessage = container.lastElementChild;
                 lastAssistantMessage.innerHTML = markdownToHTML(text);
                 lastAssistantMessage.id = "assistant-message-" + Date.now();
+                 // After updating the content, add event listeners to any new apply buttons
+                addApplyButtonListeners();
               }
 
               isStreamingResponse = false;
@@ -345,6 +369,8 @@ export default function getWebviewContent(): string {
               // Load an existing conversation
               if (messages && messages.length > 0) {
                 renderConversation(messages);
+                 // After rendering the conversation, add event listeners to all apply buttons
+                addApplyButtonListeners();
               }
             }
           });

@@ -42,6 +42,14 @@ export default function getWebviewContent(): string {
               <option value="gemma3:12b">Gemma 3 12b (8.1GB)</option>
               <option value="gemma3:27b">Gemma 3 27b (17GB)</option>
             <option value="phi4:14b">Phi-4 14b (9.1GB)</option>
+            <option value="qwen3:0.6b">Qwen3 0.6b (523MB)</option>
+              <option value="qwen3:1.7b">Qwen3 1.7b (1.4GB)</option>
+              <option value="qwen3:4b">Qwen3 4b (2.6GB)</option>
+              <option value="qwen3:8b">Qwen3 8b (5.2GB)</option>
+              <option value="qwen3:14b">Qwen3 14b (9.3GB)</option>
+              <option value="qwen3:30b-a3b">Qwen3 30b-a3b (19GB)</option>
+              <option value="qwen3:32b">Qwen3 32b (20GB)</option>
+              <option value="qwen3:235b-a22b">Qwen3 235b-a22b (142GB)</option>
             <option value="qwq">QwQ (20GB)</option>
           </select>
           <button id="clearButton">Clear Chat</button>

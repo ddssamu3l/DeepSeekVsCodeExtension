@@ -36,4 +36,4 @@ ollama pull deepseek-r1:8b
 ```
 
 ## ❤️ Support
-For any issues with the extension, reach out to us directly at samueldeng78@gmail.com
+For any issues with the extension, reach out to us directly at rainsongsoftware@gmail.com

@@ -33,7 +33,7 @@ export default function getWebviewContent(): string {
         <div class="header">
           <select class="model-selector" name="model-selector" id="model-selector">
             <option value="deepseek-r1:1.5b">DeepSeek R1 1.5b (1.5GB)</option>
-              <option value="deepseek-r1:8b" selected>DeepSeek R1 8b (4.9GB)</option>
+              <option value="deepseek-r1:8b">DeepSeek R1 8b (4.9GB)</option>
               <option value="deepseek-r1:14b">DeepSeek R1 14b (9GB)</option>
               <option value="deepseek-r1:32b">DeepSeek R1 32b (20GB)</option>
               <option value="deepseek-r1:70b">DeepSeek R1 70b (43GB)</option>
@@ -45,7 +45,7 @@ export default function getWebviewContent(): string {
             <option value="qwen3:0.6b">Qwen3 0.6b (523MB)</option>
               <option value="qwen3:1.7b">Qwen3 1.7b (1.4GB)</option>
               <option value="qwen3:4b">Qwen3 4b (2.6GB)</option>
-              <option value="qwen3:8b">Qwen3 8b (5.2GB)</option>
+              <option value="qwen3:8b" selected>Qwen3 8b (5.2GB)</option>
               <option value="qwen3:14b">Qwen3 14b (9.3GB)</option>
               <option value="qwen3:30b-a3b">Qwen3 30b-a3b (19GB)</option>
               <option value="qwen3:32b">Qwen3 32b (20GB)</option>
@@ -84,7 +84,7 @@ export default function getWebviewContent(): string {
         const modelSelector = document.getElementById("model-selector");
         const userPrompt = document.getElementById("userPrompt");
         let selectedModelName = modelSelector.value;
-        let modelIsInstalled = checkSelectedModel("deepseek-r1:8b"); // tracks whether the user's machine has installed the current selected model
+        let modelIsInstalled = checkSelectedModel("qwen3:8b"); // tracks whether the user's machine has installed the current selected model
         let isStreamingResponse = false; // tracks whether the extension is currently streaming a response from ollama
         const askButtonElem = document.getElementById("askButton");
         const clearButtonElem = document.getElementById("clearButton");

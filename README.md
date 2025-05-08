@@ -30,9 +30,9 @@ Select from one of the available models (brackets indicate VRAM usage)
 - Gemma 3 27b (17GB)
 - QwQ (20GB)
 
-### 📝 Example (default model: DeepSeek R1 8b)
+### 📝 Example (default model: Qwen3 8b)
 ```
-ollama pull deepseek-r1:8b
+ollama pull qwen3:8b
 ```
 
 ## ❤️ Support

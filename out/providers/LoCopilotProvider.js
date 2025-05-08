@@ -63,24 +63,32 @@ class LoCopilotViewProvider {
      */
     constructor(_extensionUri) {
         this._extensionUri = _extensionUri;
-        const toolDescriptions = tools_1.availableTools.map(t => ({
-            name: t.function.name,
-            description: t.function.description,
-            parameters: t.function.parameters
+        const toolDescriptionsForSystemPrompt = tools_1.availableTools.map(t => ({
+            type: t.type,
+            function: {
+                name: t.function.name,
+                description: t.function.description,
+                parameters: t.function.parameters
+            }
         }));
-        const systemPrompt = `You are an AI Coding agent. You will help your user with code related tasks.
+        const systemPrompt = `You are an AI Coding agent. CRITICAL: Assume every question the user asks is related to the current codebase that the user is looking at. 
+    
+    You will help your user with code related tasks.
 The user's prompts may include selected text or current file content for context. Use this information if relevant.
-You can use tools to perform actions. When you decide to use tools, your response must be a JSON object with a "tool_calls" key.
-The "tool_calls" value should be an array of objects, where each object has a "type" field set to "function" and a "function" field.
-The "function" field should be an object with "name" (the tool name) and "arguments" (an object of parameters).
+You have access to a set of tools to gather information about the user's codebase or perform actions. You have the ability to call multiple tools sequentially, or multiple tools at once if needed.
+When you decide to use a tool, your response MUST be a JSON object containing a "tool_calls" array.
+Each object in the "tool_calls" array must have a "type" field set to "function", and a "function" field.
+The "function" field must be an object with a "name" (the tool's name) and "arguments" (an object of parameters).
+You MUST also provide a unique "id" for each tool call (e.g., "call_123", "call_abc", etc.). This ID will be used to match the tool's output back to your request.
+
 Example of a tool call response:
 {
   "role": "assistant",
-  "content": "I will use a tool to find files.",
+  "content": "Okay, I need to find some files first.",
   "tool_calls": [
     {
+      "id": "call_xyz_1",
       "type": "function",
-      "id": "call_123", // The model should generate a unique ID for each call
       "function": {
         "name": "glob",
         "arguments": {"pattern": "*.ts"}
@@ -88,10 +96,16 @@ Example of a tool call response:
     }
   ]
 }
-After I execute the tools, I will provide their results in messages with role "tool". Then you can continue processing.
+
+After you provide tool calls, I will execute them and return the results in "tool" role messages, each with a "tool_call_id" matching your request and "content" holding the tool's output (as a JSON string).
+You can then use these results to make further decisions, call more tools, or generate your final answer to the user.
+If you need to call multiple tools sequentially (e.g., find files, then read one), make one set of tool calls, wait for the results, then make the next set of tool calls.
+When you have all the information you need and are ready to provide the final answer to the user, respond with your answer in the "content" field and DO NOT include a "tool_calls" field.
+
+IMPORTANT: If you are unable to gather the information needed to answer the user's question, respond with a message telling the user that you are unable to answer their question, asking them to specify which files contain the information you need in order to answer their question.
 
 Available tools:
-${JSON.stringify(toolDescriptions, null, 2)}`;
+${JSON.stringify(toolDescriptionsForSystemPrompt, null, 2)}`;
         this._conversationHistory = [
             {
                 role: "system",
@@ -255,143 +269,157 @@ ${JSON.stringify(toolDescriptions, null, 2)}`;
         }
         console.log("Received user prompt: " + userPrompt);
         const fullPrompt = this._buildFullPrompt(userPrompt);
-        // Add user message to history
         this._conversationHistory.push({ role: "user", content: fullPrompt });
         this._view.webview.postMessage({ command: "loadConversation", messages: this._conversationHistory });
+        let currentMessages = JSON.parse(JSON.stringify(this._conversationHistory));
+        const maxToolRounds = 5;
+        let finalAssistantMessageContent = "";
+        let finalAssistantMessageProcessed = false;
         try {
-            // Prepare messages for Ollama (send a copy)
-            let messagesForOllama = JSON.parse(JSON.stringify(this._conversationHistory));
-            // Ensure content is string for all messages being sent
-            messagesForOllama.forEach(msg => {
-                if (msg.content === null || msg.content === undefined) {
-                    msg.content = "";
-                }
-            });
-            // First call to Ollama
-            const response = await ollama_1.default.chat({
-                model: this._currentModel,
-                messages: messagesForOllama, // Use 'as any' if type discrepancies persist with ollama library
-                tools: tools_1.availableTools, // availableTools should be in the format [{ type: 'function', function: {...} }]
-                stream: false, // Get the full response to check for tool_calls
-            });
-            let assistantMessageFromOllama = response.message;
-            // Ensure content is a string, even if Ollama sends null/undefined
-            assistantMessageFromOllama.content = assistantMessageFromOllama.content || "";
-            this._conversationHistory.push(assistantMessageFromOllama);
-            this._view.webview.postMessage({ command: "loadConversation", messages: this._conversationHistory }); // Update UI with assistant's initial response
-            if (assistantMessageFromOllama.tool_calls && assistantMessageFromOllama.tool_calls.length > 0) {
-                console.log("Tool calls requested:", JSON.stringify(assistantMessageFromOllama.tool_calls, null, 2));
-                // Display initial assistant content if any (e.g., "Okay, I will search for files...")
-                if (assistantMessageFromOllama.content) {
-                    this._view.webview.postMessage({
-                        command: "chatResponse", // Or a more specific command
-                        text: assistantMessageFromOllama.content,
-                        messages: this._conversationHistory, // Send current history
-                    });
-                }
-                const toolResultMessages = [];
-                for (const toolCall of assistantMessageFromOllama.tool_calls) {
-                    const toolName = toolCall.function.name;
-                    let toolArgs = toolCall.function.arguments;
-                    const toolCallId = toolCall.id; // Use the ID from Ollama's response
-                    if (typeof toolArgs === 'string') {
-                        try {
-                            toolArgs = JSON.parse(toolArgs);
-                        }
-                        catch (e) {
-                            console.error(`Error parsing arguments for tool ${toolName}: ${toolArgs}`, e);
-                            toolResultMessages.push({
-                                role: "tool",
-                                tool_call_id: toolCallId,
-                                name: toolName,
-                                content: `Error: Could not parse arguments for tool ${toolName}. Arguments: ${toolArgs}`,
-                            });
-                            continue;
-                        }
-                    }
-                    const toolFunction = tools_1.functionsMap[toolName];
-                    if (toolFunction) {
-                        try {
-                            const result = await toolFunction(toolArgs);
-                            toolResultMessages.push({
-                                role: "tool",
-                                tool_call_id: toolCallId,
-                                name: toolName, // For our reference
-                                content: typeof result === 'string' ? result : JSON.stringify(result),
-                            });
-                        }
-                        catch (error) {
-                            console.error(`Error executing tool ${toolName}:`, error);
-                            toolResultMessages.push({
-                                role: "tool",
-                                tool_call_id: toolCallId,
-                                name: toolName,
-                                content: `Error executing tool ${toolName}: ${error instanceof Error ? error.message : String(error)}`,
-                            });
-                        }
-                    }
-                    else {
-                        console.warn(`Tool ${toolName} not found`);
-                        toolResultMessages.push({
-                            role: "tool",
-                            tool_call_id: toolCallId,
-                            name: toolName,
-                            content: `Error: Tool "${toolName}" not found.`,
-                        });
-                    }
-                }
-                this._conversationHistory.push(...toolResultMessages);
-                this._view.webview.postMessage({ command: "loadConversation", messages: this._conversationHistory });
-                // Second call to Ollama with tool results, this time streaming for the final answer
-                // Prepare messages again, ensuring content is string
-                let messagesForFinalResponse = JSON.parse(JSON.stringify(this._conversationHistory));
-                messagesForFinalResponse.forEach(msg => {
-                    if (msg.content === null || msg.content === undefined) {
-                        msg.content = "";
-                    }
-                });
-                const finalResponseStream = await ollama_1.default.chat({
+            for (let round = 0; round < maxToolRounds; round++) {
+                // Ensure content is string and clean up messages for Ollama
+                const messagesForOllama = currentMessages.map(msg => ({
+                    ...msg,
+                    content: msg.content === null || msg.content === undefined ? "" : msg.content,
+                    // Ollama expects tool_calls only on assistant messages if they are making calls
+                    // and tool_call_id only on tool messages.
+                    tool_calls: msg.role === 'assistant' ? msg.tool_calls : undefined,
+                    tool_call_id: msg.role === 'tool' ? msg.tool_call_id : undefined,
+                    name: msg.role === 'tool' ? msg.name : undefined, // Only for tool role
+                }));
+                console.log(`Round ${round + 1}: Sending to Ollama`);
+                const ollamaResponse = await ollama_1.default.chat({
                     model: this._currentModel,
-                    messages: messagesForFinalResponse,
-                    stream: true,
+                    messages: messagesForOllama, // Cast needed due to ollama library's specific Message type
+                    tools: tools_1.availableTools,
+                    stream: false,
                 });
-                let finalResponseText = "";
-                this._conversationHistory.push({ role: "assistant", content: "" }); // Placeholder for the final assistant message
+                const assistantMessageFromOllama = ollamaResponse.message;
+                assistantMessageFromOllama.content = assistantMessageFromOllama.content || "";
+                // Add assistant's response (text and/or tool_calls) to the true history
+                this._conversationHistory.push(assistantMessageFromOllama);
+                currentMessages = JSON.parse(JSON.stringify(this._conversationHistory)); // Update currentMessages for the next loop
+                this._view.webview.postMessage({ command: "loadConversation", messages: this._conversationHistory });
+                if (assistantMessageFromOllama.tool_calls && assistantMessageFromOllama.tool_calls.length > 0) {
+                    console.log("Tool calls requested:", JSON.stringify(assistantMessageFromOllama.tool_calls, null, 2));
+                    const toolResultMessages = [];
+                    for (const toolCall of assistantMessageFromOllama.tool_calls) {
+                        const toolName = toolCall.function.name;
+                        let toolArgs = toolCall.function.arguments;
+                        const toolCallId = toolCall.id;
+                        if (typeof toolArgs === 'string') {
+                            try {
+                                toolArgs = JSON.parse(toolArgs);
+                            }
+                            catch (e) {
+                                console.error(`Error parsing arguments for tool ${toolName}: ${toolArgs}`, e);
+                                toolResultMessages.push({
+                                    role: "tool",
+                                    tool_call_id: toolCallId,
+                                    name: toolName,
+                                    content: `Error: Could not parse arguments for tool ${toolName}. Arguments: ${toolArgs}`,
+                                });
+                                continue;
+                            }
+                        }
+                        const toolFunction = tools_1.functionsMap[toolName];
+                        if (toolFunction) {
+                            try {
+                                const result = await toolFunction(toolArgs);
+                                console.log(`Tool "${toolName}" result:\n`, result);
+                                toolResultMessages.push({
+                                    role: "tool",
+                                    tool_call_id: toolCallId,
+                                    name: toolName,
+                                    content: typeof result === 'string' ? result : JSON.stringify(result),
+                                });
+                            }
+                            catch (error) {
+                                console.error(`Error executing tool ${toolName}:`, error);
+                                toolResultMessages.push({
+                                    role: "tool",
+                                    tool_call_id: toolCallId,
+                                    name: toolName,
+                                    content: `Error executing tool ${toolName}: ${error instanceof Error ? error.message : String(error)}`,
+                                });
+                            }
+                        }
+                        else {
+                            console.warn(`Tool ${toolName} not found`);
+                            toolResultMessages.push({
+                                role: "tool",
+                                tool_call_id: toolCallId,
+                                name: toolName,
+                                content: `Error: Tool "${toolName}" not found.`,
+                            });
+                        }
+                    }
+                    this._conversationHistory.push(...toolResultMessages);
+                    currentMessages = JSON.parse(JSON.stringify(this._conversationHistory));
+                    this._view.webview.postMessage({ command: "loadConversation", messages: this._conversationHistory });
+                }
+                else {
+                    // No tool calls, this is the final response content from the non-streaming call
+                    finalAssistantMessageContent = (0, removeThink_1.default)(assistantMessageFromOllama.content);
+                    finalAssistantMessageProcessed = true;
+                    console.log("Finished processing prompt (final response from non-streaming call) from: " + this._currentModel);
+                    break; // Exit the tool call loop
+                }
+            }
+            if (!finalAssistantMessageProcessed && currentMessages[currentMessages.length - 1].role !== 'assistant') {
+                // If maxToolRounds reached or some other unexpected exit from loop without a final assistant message,
+                // make one last streaming call to get a coherent textual response.
+                console.warn(finalAssistantMessageProcessed ? "Max tool rounds reached, getting final response." : "No tool calls in last round, getting final response via stream.");
+                // Add a placeholder for the final assistant message
+                this._conversationHistory.push({ role: "assistant", content: "" });
                 const finalAssistantMessageIdx = this._conversationHistory.length - 1;
-                for await (const part of finalResponseStream) {
+                this._view.webview.postMessage({ command: "loadConversation", messages: this._conversationHistory });
+                const messagesForStreaming = currentMessages.map(msg => ({
+                    ...msg,
+                    content: msg.content === null || msg.content === undefined ? "" : msg.content,
+                    tool_calls: msg.role === 'assistant' ? msg.tool_calls : undefined,
+                    tool_call_id: msg.role === 'tool' ? msg.tool_call_id : undefined,
+                    name: msg.role === 'tool' ? msg.name : undefined,
+                }));
+                const finalStream = await ollama_1.default.chat({
+                    model: this._currentModel,
+                    messages: messagesForStreaming,
+                    stream: true,
+                    // No 'tools' parameter here, we expect a textual answer
+                });
+                let streamedText = "";
+                for await (const part of finalStream) {
                     if (part.message.content) {
-                        finalResponseText += part.message.content;
-                        this._conversationHistory[finalAssistantMessageIdx].content = finalResponseText;
+                        streamedText += part.message.content;
+                        this._conversationHistory[finalAssistantMessageIdx].content = streamedText;
                         this._view?.webview.postMessage({
                             command: "chatResponse",
-                            text: finalResponseText, // Streamed text
-                            messages: this._conversationHistory, // To update the last message
+                            text: streamedText,
+                            messages: this._conversationHistory,
                         });
                     }
                 }
-                this._conversationHistory[finalAssistantMessageIdx].content = (0, removeThink_1.default)(finalResponseText);
+                finalAssistantMessageContent = (0, removeThink_1.default)(streamedText);
+                this._conversationHistory[finalAssistantMessageIdx].content = finalAssistantMessageContent;
+                finalAssistantMessageProcessed = true;
+                console.log("Finished streaming final response from: " + this._currentModel);
             }
-            else {
-                // No tool calls, the first response is the final answer.
-                // The assistantMessageFromOllama is already in history.
-                // We just need to ensure its content is cleaned.
+            else if (!finalAssistantMessageProcessed && this._conversationHistory.length > 0) {
+                // Fallback: if loop ended, but no clear final message, use the last assistant message's content
                 const lastMessage = this._conversationHistory[this._conversationHistory.length - 1];
                 if (lastMessage.role === 'assistant') {
-                    lastMessage.content = (0, removeThink_1.default)(lastMessage.content);
+                    finalAssistantMessageContent = (0, removeThink_1.default)(lastMessage.content);
+                    finalAssistantMessageProcessed = true;
                 }
             }
             // Restore the original short user prompt in history
-            const lastUserMessageIndex = this._conversationHistory
-                .map(m => m.role)
-                .lastIndexOf("user");
+            const lastUserMessageIndex = this._conversationHistory.map(m => m.role).lastIndexOf("user");
             if (lastUserMessageIndex !== -1 && this._conversationHistory[lastUserMessageIndex].content === fullPrompt) {
                 this._conversationHistory[lastUserMessageIndex].content = userPrompt;
             }
-            console.log("Finished processing prompt from: " + this._currentModel);
-            const finalMessageToDisplay = this._conversationHistory[this._conversationHistory.length - 1];
             this._view.webview.postMessage({
                 command: "chatCompletion",
-                text: finalMessageToDisplay.content,
+                text: finalAssistantMessageContent,
                 messages: this._conversationHistory,
             });
         }
@@ -404,6 +432,9 @@ ${JSON.stringify(toolDescriptions, null, 2)}`;
             else if (typeof error === 'string') {
                 errorMessage = error;
             }
+            else if (error && typeof error.message === 'string') {
+                errorMessage = `Ollama Error: ${error.message}`;
+            }
             else {
                 try {
                     errorMessage = `Error: ${JSON.stringify(error)}`;
@@ -412,20 +443,20 @@ ${JSON.stringify(toolDescriptions, null, 2)}`;
                     errorMessage = "An unknown error occurred.";
                 }
             }
-            // Ensure there's an assistant message to display the error
-            let lastMessage = this._conversationHistory[this._conversationHistory.length - 1];
-            if (lastMessage && lastMessage.role === "assistant" && (lastMessage.content === "" || lastMessage.content === "Thinking...") && !lastMessage.tool_calls) {
+            // Ensure there's an assistant message to display the error, or update the last one
+            let lastMessage = this._conversationHistory.length > 0 ? this._conversationHistory[this._conversationHistory.length - 1] : null;
+            if (lastMessage && lastMessage.role === "assistant" && (lastMessage.content === "" || lastMessage.content.startsWith("Thinking")) && !lastMessage.tool_calls) {
                 lastMessage.content = errorMessage;
             }
             else {
                 this._conversationHistory.push({ role: "assistant", content: errorMessage });
             }
             this._view?.webview.postMessage({
-                command: "chatCompletion", // Use chatCompletion to indicate the turn is over
+                command: "chatCompletion",
                 text: errorMessage,
                 messages: this._conversationHistory,
             });
-            vscode.window.showErrorMessage("LoCopilot error: " + errorMessage);
+            vscode.window.showErrorMessage("LoCopilot error: " + (error instanceof Error ? error.message : String(error)));
         }
     }
 }

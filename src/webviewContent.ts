@@ -211,6 +211,9 @@ export default function getWebviewContent(): string {
           if (role === 'assistant') {
             messageDiv.id = "assistant-message";
             messageDiv.innerHTML = markdownToHTML(content);
+          }else if (role === 'tool') {
+            messageDiv.id = "tool-message-" + Date.now();
+            messageDiv.textContent = "Called tool: " + content;
           }else{
             messageDiv.textContent = content;
             messageDiv.id = "user-message-" + Date.now();
@@ -259,7 +262,9 @@ export default function getWebviewContent(): string {
           clearChat();
           if (messages && messages.length > 0) {
             messages.forEach(msg => {
-              if(msg.role !== "system"){
+              if(msg.role === "tool"){
+                addMessage(msg.role, msg.name);
+              }else if(msg.role !== "system"){
                 addMessage(msg.role, msg.content);
               }
             });

@@ -93,18 +93,36 @@ export const grep = async (args: { pattern: string; filePattern?: string }): Pro
     return JSON.stringify({ error: "Workspace root not found. Cannot perform grep search." });
   }
   
-  const fileGlob = args.filePattern || "**/*"; 
-  // Escape shell special characters in pattern and fileGlob for security and correctness
-  const escapeShellArg = (arg: string) => `"${arg.replace(/(?=[\"$`!\\])/g, '\\')}"`;
-  
-  const escapedPattern = escapeShellArg(args.pattern);
-  // Note: ripgrep's globbing is powerful, but we use it carefully here.
-  // We'll let rg handle the globbing within the CWD.
-  const cmd = `rg --with-filename --line-number --color never -e ${escapedPattern} ${escapeShellArg(fileGlob)}`;
+  // Escape the regex pattern for the shell command -e argument
+  const escapeRegexArg = (arg: string) => arg.replace(/"/g, '\\"'); // Basic quote escaping
+  const escapedPattern = escapeRegexArg(args.pattern);
+
+  // Define the base command and arguments for rg
+  const rgArgs = [
+    '--with-filename',
+    '--line-number',
+    '--color=never',
+    '--glob=!node_modules/**', // Exclude common directories via rg's glob
+    '--glob=!dist/**',
+    '--glob=!.git/**',
+    '--glob=!.vscode/**',
+    '-e', escapedPattern, 
+  ];
+
+  // Add file pattern glob if provided
+  if (args.filePattern) {
+    // Let rg handle the globbing internally
+    rgArgs.push('--glob', args.filePattern);
+  }
+
+  // Specify the directory to search (current workspace)
+  rgArgs.push('.'); // Search from the CWD
+
+  const cmd = `rg ${rgArgs.join(' ')}`;
   
   try {
     console.log(`Executing grep command: ${cmd} in ${workspaceRoot}`);
-    const { stdout, stderr } = await execAsync(cmd, { cwd: workspaceRoot });
+    const { stdout, stderr } = await execAsync(cmd, { cwd: workspaceRoot }); // Execute in workspace root
     if (stderr) {
         console.warn("Grep stderr:", stderr);
     }
@@ -113,14 +131,15 @@ export const grep = async (args: { pattern: string; filePattern?: string }): Pro
       .filter(line => line.trim().length > 0)
       .map(line => {
         // Ripgrep output format: FILENAME:LINENUMBER:MATCH_TEXT
-        // Or just FILENAME if --files-with-matches is used, but we are not using it here.
-        // We want to return the full path to the file.
+        // Prepend workspace root to make paths absolute for consistency
         const parts = line.split(':');
         if (parts.length >= 2) {
-            const filePath = path.resolve(workspaceRoot, parts[0]);
-            return `${filePath}:${parts.slice(1).join(':')}`;
+            const relativePath = parts[0];
+            const absolutePath = path.resolve(workspaceRoot, relativePath);
+            // Reconstruct the line with absolute path
+            return `${absolutePath}:${parts.slice(1).join(':')}`;
         }
-        return line; // Fallback, though should not happen with --with-filename
+        return line; // Should ideally not happen with --with-filename
       });
     return JSON.stringify({ matches });
   } catch (err: any) {
@@ -132,17 +151,19 @@ export const grep = async (args: { pattern: string; filePattern?: string }): Pro
       .map((line: string) => {
         const parts = line.split(':');
         if (parts.length >= 2) {
-            const filePath = path.resolve(workspaceRoot, parts[0]);
-            return `${filePath}:${parts.slice(1).join(':')}`;
+            const relativePath = parts[0];
+            const absolutePath = path.resolve(workspaceRoot, relativePath);
+            return `${absolutePath}:${parts.slice(1).join(':')}`;
         }
         return line;
       });
 
     if (err.code === 1) { // rg exits with 1 if no matches are found
-        return JSON.stringify({ matches: [] }); // No matches is not an error in this context
+        return JSON.stringify({ matches: matches }); // Return empty array if no actual matches parsed
     }
+    // For other errors (like code 2), log and return the error
     console.error("Error in grep tool:", { code: err.code, stdout, stderr, message: err.message });
-    return JSON.stringify({ error: `Grep execution failed: ${err.message}`, details: stderr || stdout });
+    return JSON.stringify({ error: `Grep execution failed (code ${err.code}): ${err.message}`, details: stderr || stdout });
   }
 };
 

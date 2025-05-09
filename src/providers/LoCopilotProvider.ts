@@ -149,7 +149,7 @@ export default class LoCopilotViewProvider implements vscode.WebviewViewProvider
         if (this._view && this._conversationHistory.length > 0) {
           this._view.webview.postMessage({
             command: "loadConversation",
-            messages: this._filterHistoryForDisplay(this._conversationHistory) // Send filtered history
+            messages: this._conversationHistory // Send filtered history
           });
         }
       }, 300);
@@ -173,7 +173,7 @@ export default class LoCopilotViewProvider implements vscode.WebviewViewProvider
     if (this._view) {
       this._view.webview.postMessage({
         command: "loadConversation",
-        messages: this._filterHistoryForDisplay(this._conversationHistory) // Send filtered history
+        messages: this._conversationHistory // Send filtered history
       });
     }
   }
@@ -191,7 +191,7 @@ export default class LoCopilotViewProvider implements vscode.WebviewViewProvider
     }
     
     try {
-      await ollama.show({ model: modelName });
+        await ollama.show({ model: modelName });
       this._view.webview.postMessage({
         command: "modelInstalledResult",
         isInstalled: true,
@@ -249,9 +249,9 @@ export default class LoCopilotViewProvider implements vscode.WebviewViewProvider
     if (selectedText.trim()) {
       fullPrompt += `\n\nUser selected text (from ${fileName}):\n\`\`\`\n${selectedText}\n\`\`\`\n`;
     }
-    if (fileContent.trim()) {
-       fullPrompt += `\n\nText content of current file (${fileName}):\n\`\`\`\n${fileContent}\n\`\`\`\n`;
-    }
+    // if (fileContent.trim()) {
+    //    fullPrompt += `\n\nText content of current file (${fileName}):\n\`\`\`\n${fileContent}\n\`\`\`\n`;
+    // }
 
     return fullPrompt;
   }
@@ -273,7 +273,7 @@ export default class LoCopilotViewProvider implements vscode.WebviewViewProvider
     // Add user message to internal history
     this._conversationHistory.push({ role: "user", content: fullPrompt });
     // Update webview immediately with the user message (filtered history)
-    this._view.webview.postMessage({ command: "loadConversation", messages: this._filterHistoryForDisplay(this._conversationHistory) });
+    this._view.webview.postMessage({ command: "loadConversation", messages: this._conversationHistory });
 
     let currentMessages: Message[] = JSON.parse(JSON.stringify(this._conversationHistory));
     const maxToolRounds = 5; 
@@ -301,7 +301,7 @@ export default class LoCopilotViewProvider implements vscode.WebviewViewProvider
             return cleanMsg;
         });
          
-        console.log(`Round ${round + 1}: Sending ${messagesForOllama.length} messages to Ollama`); // Avoid logging potentially large message content by default
+        console.log(`Round ${round + 1}: Sending ${messagesForOllama.length} messages to Ollama`);
 
         const ollamaResponse = await ollama.chat({
           model: this._currentModel,
@@ -323,7 +323,7 @@ export default class LoCopilotViewProvider implements vscode.WebviewViewProvider
         currentMessages = JSON.parse(JSON.stringify(this._conversationHistory)); // Update internal messages state
         
         // Update webview ONLY with displayable messages (user/assistant)
-        this._view.webview.postMessage({ command: "loadConversation", messages: this._filterHistoryForDisplay(this._conversationHistory) });
+        this._view.webview.postMessage({ command: "loadConversation", messages: this._conversationHistory});
 
         // Check if the message contains tool calls
         const toolCalls = assistantMessageFromOllama.tool_calls;
@@ -332,21 +332,27 @@ export default class LoCopilotViewProvider implements vscode.WebviewViewProvider
           console.log("Tool calls requested:", JSON.stringify(toolCalls, null, 2));
           const toolResultMessages: Message[] = [];
 
-          for (const toolCall of toolCalls) {
+          // Use for...of with index to generate fallback IDs if needed
+          for (let i = 0; i < toolCalls.length; i++) {
+            const toolCall = toolCalls[i];
             const toolName = toolCall.function.name;
             let toolArgs = toolCall.function.arguments;
-            const toolCallId = toolCall.id; // Use the ID from Ollama's response
+            let toolCallId = toolCall.id;
 
             if (!toolCallId) {
-                console.error(`Tool call for ${toolName} missing required 'id'. Skipping.`);
-                // Create an error message for the LLM
-                toolResultMessages.push({
-                  role: "tool",
-                  tool_call_id: `error_${Date.now()}`, // Generate a dummy ID
-                  name: toolName, 
-                  content: `Error: Tool call received from model for '${toolName}' was missing the required 'id' field.`,
-                });
-                continue; 
+                toolCallId = `${toolName}_${i}_${Date.now()}`; // Generate a unique ID
+                console.warn(`Tool call for '${toolName}' was missing an ID. Generated ID: ${toolCallId}`);
+                // Optionally, inform the model it didn't provide an ID? For now, just proceed.
+                // We need to add the generated ID back to the assistant message in history 
+                // so the model sees it in the next round if it looks back.
+                if (assistantMessageFromOllama.tool_calls) {
+                    assistantMessageFromOllama.tool_calls[i].id = toolCallId;
+                    // Also update the main history object directly
+                    const histMsg = this._conversationHistory[this._conversationHistory.length - 1];
+                    if (histMsg.role === 'assistant' && histMsg.tool_calls) {
+                        histMsg.tool_calls[i].id = toolCallId;
+                    }
+                }
             }
 
             // Ensure arguments are parsed
@@ -431,7 +437,7 @@ export default class LoCopilotViewProvider implements vscode.WebviewViewProvider
         this._conversationHistory.push({ role: "assistant", content: "" }); 
         const finalAssistantMessageIdx = this._conversationHistory.length - 1;
         // Update webview to show the new (empty) assistant message placeholder
-        this._view.webview.postMessage({ command: "loadConversation", messages: this._filterHistoryForDisplay(this._conversationHistory) });
+        this._view.webview.postMessage({ command: "loadConversation", messages: this._conversationHistory });
 
         // Prepare messages for the final streaming call (without tools capability)
         const messagesForStreaming = currentMessages.map(msg => { // Use internal history which includes tool results
@@ -493,7 +499,7 @@ export default class LoCopilotViewProvider implements vscode.WebviewViewProvider
       this._view.webview.postMessage({
         command: "chatCompletion",
         text: finalAssistantMessageContent, // Send the final text content
-        messages: this._filterHistoryForDisplay(this._conversationHistory), // Send final filtered history
+        messages: this._conversationHistory, // Send final filtered history
       });
 
     } catch (error) {
@@ -540,15 +546,10 @@ export default class LoCopilotViewProvider implements vscode.WebviewViewProvider
       this._view?.webview.postMessage({
         command: "chatCompletion", 
         text: errorMessage, // Ensure the error text is sent
-        messages: this._filterHistoryForDisplay(this._conversationHistory), 
+        messages: this._conversationHistory, 
       });
 
       vscode.window.showErrorMessage("LoCopilot error: " + (error instanceof Error ? error.message : String(error)));
     }
-  }
-
-  // Helper to filter out tool messages for display
-  private _filterHistoryForDisplay(history: Message[]): Message[] {
-      return history.filter(msg => msg.role !== 'tool');
   }
 }

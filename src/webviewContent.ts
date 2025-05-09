@@ -204,7 +204,13 @@ export default function getWebviewContent(): string {
           
           // Create message element
           const messageDiv = document.createElement('div');
-          messageDiv.className = role === 'user' ? 'chat-message user-message' : 'chat-message assistant-message';
+          if(role === 'tool'){
+            messageDiv.className = 'chat-message tool-message';
+          }else if (role === 'user'){
+            messageDiv.className = 'chat-message user-message';
+          }else if (role === 'assistant'){
+            messageDiv.className = 'chat-message assistant-message';
+          }
           
           // User message can have a date id assigned immediately since they will only be added once
           // Assistant messages are constantly streamed so they will get an id when the "chatCompletion" command is activated

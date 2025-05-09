@@ -235,13 +235,22 @@ function getWebviewContent() {
           
           // Create message element
           const messageDiv = document.createElement('div');
-          messageDiv.className = role === 'user' ? 'chat-message user-message' : 'chat-message assistant-message';
+          if(role === 'tool'){
+            messageDiv.className = 'chat-message tool-message';
+          }else if (role === 'user'){
+            messageDiv.className = 'chat-message user-message';
+          }else if (role === 'assistant'){
+            messageDiv.className = 'chat-message assistant-message';
+          }
           
           // User message can have a date id assigned immediately since they will only be added once
           // Assistant messages are constantly streamed so they will get an id when the "chatCompletion" command is activated
           if (role === 'assistant') {
             messageDiv.id = "assistant-message";
             messageDiv.innerHTML = markdownToHTML(content);
+          }else if (role === 'tool') {
+            messageDiv.id = "tool-message-" + Date.now();
+            messageDiv.textContent = "Called tool: " + content;
           }else{
             messageDiv.textContent = content;
             messageDiv.id = "user-message-" + Date.now();
@@ -290,7 +299,9 @@ function getWebviewContent() {
           clearChat();
           if (messages && messages.length > 0) {
             messages.forEach(msg => {
-              if(msg.role !== "system"){
+              if(msg.role === "tool"){
+                addMessage(msg.role, msg.name);
+              }else if(msg.role !== "system"){
                 addMessage(msg.role, msg.content);
               }
             });

@@ -43,6 +43,7 @@ const child_process_1 = require("child_process");
 const util_1 = require("util");
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
+const child_process_2 = require("child_process");
 const execAsync = (0, util_1.promisify)(child_process_1.exec);
 // --- Tool Implementations ---
 const getWorkspaceRoot = () => {
@@ -85,73 +86,94 @@ const grep = async (args) => {
     if (!workspaceRoot) {
         return JSON.stringify({ error: "Workspace root not found. Cannot perform grep search." });
     }
-    // Escape the regex pattern for the shell command -e argument
-    const escapeRegexArg = (arg) => arg.replace(/"/g, '\\"'); // Basic quote escaping
-    const escapedPattern = escapeRegexArg(args.pattern);
-    // Define the base command and arguments for rg
+    if (!args.pattern) {
+        return JSON.stringify({ error: "Missing search pattern for grep." });
+    }
     const rgArgs = [
         '--with-filename',
         '--line-number',
-        '--color=never',
-        '--glob=!node_modules/**', // Exclude common directories via rg's glob
-        '--glob=!dist/**',
-        '--glob=!.git/**',
-        '--glob=!.vscode/**',
-        '-e', escapedPattern,
+        '--color=never', // For machine parsing
+        '--heading', // Group results by file, simplifies parsing
+        // Standard exclusions
+        '--glob=!**/node_modules/**',
+        '--glob=!**/dist/**',
+        '--glob=!**/.git/**',
+        '--glob=!**/.vscode/**',
+        '--glob=!**/bower_components/**',
+        '--glob=!**/*.lock',
+        '--glob=!**/*.log',
     ];
-    // Add file pattern glob if provided
-    if (args.filePattern) {
-        // Let rg handle the globbing internally
-        rgArgs.push('--glob', args.filePattern);
+    // Main search pattern
+    rgArgs.push('-e', args.pattern);
+    // Case sensitivity
+    if (args.caseSensitive === false) {
+        rgArgs.push('--ignore-case');
     }
-    // Specify the directory to search (current workspace)
-    rgArgs.push('.'); // Search from the CWD
-    const cmd = `rg ${rgArgs.join(' ')}`;
-    try {
-        console.log(`Executing grep command: ${cmd} in ${workspaceRoot}`);
-        const { stdout, stderr } = await execAsync(cmd, { cwd: workspaceRoot }); // Execute in workspace root
-        if (stderr) {
-            console.warn("Grep stderr:", stderr);
-        }
-        const matches = stdout
-            .split(/\r?\n/)
-            .filter(line => line.trim().length > 0)
-            .map(line => {
-            // Ripgrep output format: FILENAME:LINENUMBER:MATCH_TEXT
-            // Prepend workspace root to make paths absolute for consistency
-            const parts = line.split(':');
-            if (parts.length >= 2) {
-                const relativePath = parts[0];
-                const absolutePath = path.resolve(workspaceRoot, relativePath);
-                // Reconstruct the line with absolute path
-                return `${absolutePath}:${parts.slice(1).join(':')}`;
-            }
-            return line; // Should ideally not happen with --with-filename
+    else if (args.caseSensitive === true) {
+        rgArgs.push('--case-sensitive');
+    } // Else: rg's default "smart case"
+    // File Pattern for rg's --glob flag
+    if (args.filePattern && typeof args.filePattern === 'string' && args.filePattern.trim() !== '') {
+        rgArgs.push('--glob', args.filePattern.trim());
+    }
+    // If no filePattern is provided, rg searches the CWD (workspaceRoot) by default.
+    return new Promise((resolve) => {
+        const command = 'rg';
+        console.log(`Executing grep command: ${command} ${rgArgs.join(' ')} in ${workspaceRoot}`);
+        const rgProcess = (0, child_process_2.spawn)(command, rgArgs, { cwd: workspaceRoot, shell: false });
+        let stdout = '';
+        let stderr = '';
+        rgProcess.stdout.on('data', (data) => {
+            stdout += data.toString();
         });
-        return JSON.stringify({ matches });
-    }
-    catch (err) {
-        const stdout = err.stdout?.toString() || "";
-        const stderr = err.stderr?.toString() || "";
-        const matches = stdout
-            .split(/\r?\n/)
-            .filter((line) => line.trim().length > 0)
-            .map((line) => {
-            const parts = line.split(':');
-            if (parts.length >= 2) {
-                const relativePath = parts[0];
-                const absolutePath = path.resolve(workspaceRoot, relativePath);
-                return `${absolutePath}:${parts.slice(1).join(':')}`;
-            }
-            return line;
+        rgProcess.stderr.on('data', (data) => {
+            stderr += data.toString();
         });
-        if (err.code === 1) { // rg exits with 1 if no matches are found
-            return JSON.stringify({ matches: matches }); // Return empty array if no actual matches parsed
-        }
-        // For other errors (like code 2), log and return the error
-        console.error("Error in grep tool:", { code: err.code, stdout, stderr, message: err.message });
-        return JSON.stringify({ error: `Grep execution failed (code ${err.code}): ${err.message}`, details: stderr || stdout });
-    }
+        rgProcess.on('close', (code) => {
+            if (stderr && code !== 0 && code !== 1) { // code 1 for rg means "no matches found"
+                console.error('Error in grep tool:', { code, stdout, stderr, message: `Command failed: ${command} ${rgArgs.join(' ')}\n${stderr}` });
+                resolve(JSON.stringify({ error: `ripgrep error (code ${code}): ${stderr.trim()}`, matches: [] }));
+            }
+            else if (code === 1 && stdout.trim() === '') { // No matches found
+                resolve(JSON.stringify({ matches: [] }));
+            }
+            else {
+                const matches = [];
+                let currentFilePath = '';
+                const outputLines = stdout.trim().split('\n');
+                for (const line of outputLines) {
+                    if (!line.trim())
+                        continue;
+                    const isMatchLine = /^[0-9]+:/.test(line);
+                    if (!isMatchLine && line.length > 0) {
+                        currentFilePath = line.trim(); // This line is a file path due to --heading
+                        continue;
+                    }
+                    if (isMatchLine && currentFilePath) {
+                        const firstColonIndex = line.indexOf(':');
+                        if (firstColonIndex > 0) {
+                            const numStr = line.substring(0, firstColonIndex);
+                            const lineNumber = parseInt(numStr, 10);
+                            if (!isNaN(lineNumber)) {
+                                const lineContent = line.substring(firstColonIndex + 1);
+                                matches.push({
+                                    filePath: currentFilePath, // This is already an absolute path or path relative to workspaceRoot from rg
+                                    lineNumber: lineNumber,
+                                    lineContent: lineContent.trim(),
+                                    absolutePath: path.isAbsolute(currentFilePath) ? currentFilePath : path.join(workspaceRoot, currentFilePath)
+                                });
+                            }
+                        }
+                    }
+                }
+                resolve(JSON.stringify({ matches }));
+            }
+        });
+        rgProcess.on('error', (err) => {
+            console.error('Failed to start ripgrep process:', err);
+            resolve(JSON.stringify({ error: `Failed to start ripgrep: ${err.message}`, matches: [] }));
+        });
+    });
 };
 exports.grep = grep;
 /**
@@ -253,7 +275,8 @@ exports.availableTools = [
                 type: "object",
                 properties: {
                     pattern: { type: "string", description: "The regex pattern to search for." },
-                    filePattern: { type: "string", description: "Optional glob pattern to filter files to search within (relative to workspace root), e.g., '*.ts', 'src/**', '**/*.{js,jsx}'. Default is all files ('**/*')." }
+                    filePattern: { type: "string", description: "Optional glob pattern to filter files to search within (relative to workspace root), e.g., '*.ts', 'src/**', '**/*.{js,jsx}'. Default is all files ('**/*')." },
+                    caseSensitive: { type: "boolean", description: "Whether to perform a case-sensitive search. Defaults to false." }
                 },
                 required: ["pattern"]
             },

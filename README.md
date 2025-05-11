@@ -1,6 +1,13 @@
 # LoCopilot - Open Source Locally-Running AI Copilot
 
-![alt text](LoCopilot_gif.gif)
+## 🎬 Features in Action
+
+### Code Selection & AI Assistance
+![Code Selection Demo](media/text-selection-demo.gif)
+
+### Project Analysis with Codebase Crawling
+![Codebase Crawling Demo](media/crawl-codebase-demo.gif)
+
 
 ## ✨ Features
 - ### 🤖 Local LLM Coding Assistant

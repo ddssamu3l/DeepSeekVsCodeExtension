@@ -327,25 +327,26 @@ export default function getWebviewContent(): string {
           // Update UI based on checks
           updateUI();
           
-          // Ensure the installation prompts are properly positioned at startup
+          // Ensure the installation prompts are properly positioned at startup - after welcome message
           const chatContainer = document.getElementById('chatContainer');
           const welcomeMessage = document.querySelector('.welcome-message');
           const ollamaPrompt = document.getElementById("ollamaInstallPrompt");
           const modelPrompt = document.getElementById("modelInstallPrompt");
           
-          // Reposition the prompts above welcome message if needed
-          if (welcomeMessage && ollamaPrompt && welcomeMessage.compareDocumentPosition(ollamaPrompt) & Node.DOCUMENT_POSITION_FOLLOWING) {
-            // Ollama prompt is after welcome message, move it before
-            chatContainer.insertBefore(ollamaPrompt, welcomeMessage);
+          // Reposition the prompts after welcome message if needed
+          if (welcomeMessage && ollamaPrompt && 
+              !(welcomeMessage.compareDocumentPosition(ollamaPrompt) & Node.DOCUMENT_POSITION_FOLLOWING)) {
+            // Ollama prompt is not after welcome message, move it after
+            welcomeMessage.after(ollamaPrompt);
             
-            // If model prompt exists, position it properly too
+            // If model prompt exists, position it after Ollama prompt
             if (modelPrompt) {
               ollamaPrompt.after(modelPrompt);
             }
           } else if (welcomeMessage && modelPrompt && !ollamaPrompt && 
-                    welcomeMessage.compareDocumentPosition(modelPrompt) & Node.DOCUMENT_POSITION_FOLLOWING) {
-            // Model prompt is after welcome message but no Ollama prompt
-            chatContainer.insertBefore(modelPrompt, welcomeMessage);
+                    !(welcomeMessage.compareDocumentPosition(modelPrompt) & Node.DOCUMENT_POSITION_FOLLOWING)) {
+            // Model prompt is not after welcome message and no Ollama prompt
+            welcomeMessage.after(modelPrompt);
           }
         }
         
@@ -439,29 +440,30 @@ export default function getWebviewContent(): string {
           heading.textContent = 'Ollama Not Installed';
           
           const paragraph = document.createElement('p');
-          paragraph.textContent = 'LoCopilot requires Ollama to run local AI models. Please install Ollama to continue.';
+          paragraph.textContent = 'LoCopilot requires Ollama to run local AI models. Click below to install Ollama using a terminal command appropriate for your operating system.';
           
           const button = document.createElement('button');
           button.id = 'installOllamaButton';
           button.className = 'install-button';
-          button.textContent = 'Install Ollama';
+          button.textContent = 'Install Ollama via Terminal';
           
           // Append elements to prompt div
           promptDiv.appendChild(heading);
           promptDiv.appendChild(paragraph);
           promptDiv.appendChild(button);
           
-          // Always insert at the beginning of the container, before any other content
+          // Always insert after welcome message if it exists
           const welcomeMessage = document.querySelector('.welcome-message');
           if (welcomeMessage) {
-            // Insert before welcome message
-            chatContainer.insertBefore(promptDiv, welcomeMessage);
-          } else if (chatContainer.firstChild) {
-            // Insert before first child of any type
-            chatContainer.insertBefore(promptDiv, chatContainer.firstChild);
+            // Insert after welcome message
+            welcomeMessage.after(promptDiv);
           } else {
-            // Container is empty
-            chatContainer.appendChild(promptDiv);
+            // If no welcome message, insert at the beginning
+            if (chatContainer.firstChild) {
+              chatContainer.insertBefore(promptDiv, chatContainer.firstChild);
+            } else {
+              chatContainer.appendChild(promptDiv);
+            }
           }
           
           // Add click handler for install button
@@ -502,7 +504,7 @@ export default function getWebviewContent(): string {
           promptDiv.appendChild(paragraph);
           promptDiv.appendChild(button);
           
-          // Insert after Ollama prompt if it exists, otherwise at the beginning
+          // Insert after Ollama prompt if it exists, otherwise after welcome message
           const ollamaPrompt = document.getElementById("ollamaInstallPrompt");
           const welcomeMessage = document.querySelector('.welcome-message');
           
@@ -510,14 +512,15 @@ export default function getWebviewContent(): string {
             // Place after the Ollama prompt
             ollamaPrompt.after(promptDiv);
           } else if (welcomeMessage) {
-            // Place before the welcome message
-            chatContainer.insertBefore(promptDiv, welcomeMessage);
-          } else if (chatContainer.firstChild) {
-            // Place at the beginning
-            chatContainer.insertBefore(promptDiv, chatContainer.firstChild);
+            // Place after the welcome message
+            welcomeMessage.after(promptDiv);
           } else {
-            // Container is empty
-            chatContainer.appendChild(promptDiv);
+            // If neither exists, place at the beginning
+            if (chatContainer.firstChild) {
+              chatContainer.insertBefore(promptDiv, chatContainer.firstChild);
+            } else {
+              chatContainer.appendChild(promptDiv);
+            }
           }
           
           // Add click handler for install button
@@ -664,21 +667,22 @@ export default function getWebviewContent(): string {
             messageDiv.id = "user-message-" + Date.now();
           }
 
-          // Restore installation prompts at the beginning of the container if they existed
+          // Add the message to the chat container
+          chatContainer.appendChild(messageDiv);
+          
+          // If there were installation prompts, re-add them at the top of the messages
+          // (now that welcome message is gone)
           if (ollamaPrompt) {
-            chatContainer.appendChild(ollamaPrompt);
+            chatContainer.insertBefore(ollamaPrompt, chatContainer.firstChild);
           }
           
           if (modelPrompt) {
             if (ollamaPrompt) {
               ollamaPrompt.after(modelPrompt);
             } else {
-              chatContainer.appendChild(modelPrompt);
+              chatContainer.insertBefore(modelPrompt, chatContainer.firstChild);
             }
           }
-          
-          // Add the message after the prompts
-          chatContainer.appendChild(messageDiv);
 
           // Scroll to bottom
           chatContainer.scrollTop = chatContainer.scrollHeight;
@@ -697,25 +701,17 @@ export default function getWebviewContent(): string {
           // Clear the chat container
           chatContainer.innerHTML = '<div class="welcome-message">' + welcomeMessage + '</div>';
           
-          // Restore installation prompts if they existed
-          if (ollamaPrompt) {
-            const welcomeMessage = document.querySelector('.welcome-message');
-            if (welcomeMessage) {
-              welcomeMessage.after(ollamaPrompt);
-            } else {
-              chatContainer.prepend(ollamaPrompt);
-            }
-          }
+          // Restore installation prompts if they existed, after the welcome message
+          const welcomeMessageDiv = document.querySelector('.welcome-message');
           
-          if (modelPrompt && !ollamaPrompt) {
-            const welcomeMessage = document.querySelector('.welcome-message');
-            if (welcomeMessage) {
-              welcomeMessage.after(modelPrompt);
-            } else {
-              chatContainer.prepend(modelPrompt); 
+          if (ollamaPrompt && welcomeMessageDiv) {
+            welcomeMessageDiv.after(ollamaPrompt);
+            
+            if (modelPrompt) {
+              ollamaPrompt.after(modelPrompt);
             }
-          } else if (modelPrompt && ollamaPrompt) {
-            ollamaPrompt.after(modelPrompt);
+          } else if (modelPrompt && welcomeMessageDiv && !ollamaPrompt) {
+            welcomeMessageDiv.after(modelPrompt);
           }
         }
         
@@ -958,21 +954,24 @@ export default function getWebviewContent(): string {
                 // Make sure UI reflects the correct installation state
                 updateUI();
                 
-                // Fix prompt positioning - force installation prompts to be above everything else
+                // Fix prompt positioning - ensure installation prompts are after welcome message
                 const chatContainer = document.getElementById('chatContainer');
+                const welcomeMessage = document.querySelector('.welcome-message');
                 const ollamaPrompt = document.getElementById("ollamaInstallPrompt");
                 const modelPrompt = document.getElementById("modelInstallPrompt");
                 
-                if (ollamaPrompt && chatContainer.firstChild !== ollamaPrompt) {
-                  chatContainer.insertBefore(ollamaPrompt, chatContainer.firstChild);
-                }
-                
-                if (modelPrompt) {
-                  if (ollamaPrompt) {
+                if (welcomeMessage && ollamaPrompt) {
+                  // Ensure Ollama prompt is after welcome message
+                  welcomeMessage.after(ollamaPrompt);
+                  
+                  // If model prompt exists, place it after Ollama prompt
+                  if (modelPrompt) {
                     ollamaPrompt.after(modelPrompt);
-                  } else if (chatContainer.firstChild !== modelPrompt) {
-                    chatContainer.insertBefore(modelPrompt, chatContainer.firstChild);
                   }
+                } else if (welcomeMessage && modelPrompt && !ollamaPrompt) {
+                  // If there's no Ollama prompt but there is a model prompt,
+                  // place model prompt after welcome message
+                  welcomeMessage.after(modelPrompt);
                 }
               }
             }

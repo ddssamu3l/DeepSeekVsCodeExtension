@@ -3,10 +3,10 @@
 ## 🎬 Features in Action
 
 ### Code Selection & AI Assistance
-<img src="media/text-selection-demo.gif" alt="Code Selection Demo" width="800" />
+<img src="media/text-selection.gif" alt="Code Selection Demo" width="800" />
 
 ### Project Analysis with Codebase Crawling
-<img src="media/crawl-codebase-demo.gif" alt="Codebase Crawling Demo" width="800" />
+<img src="media/crawl-codebase.gif" alt="Codebase Crawling Demo" width="800" />
 
 ## ✨ Features
 - ### 🤖 Local LLM Coding Assistant

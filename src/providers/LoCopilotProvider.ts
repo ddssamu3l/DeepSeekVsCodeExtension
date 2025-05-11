@@ -4,6 +4,17 @@ import getFileContext from "../utils/editorUtils";
 import removeThink from "../utils/removeThink";
 import getWebviewContent from "../webviewContent";
 import { buildWorkspaceMap, createCondensedMapForPrompt, buildPrioritizedWorkspaceMap, recordFileAccess } from '../utils/workspaceUtils';
+import { 
+  isWSL, 
+  detectWSLFromEnvironment, 
+  getOllamaPath, 
+  checkOllamaInstalled, 
+  addTerminalDebugInfo, 
+  installOllamaInWSL, 
+  installOllamaOnLinux, 
+  installOllamaOnWindows, 
+  installOllamaOnMacOS 
+} from '../utils/platformUtils';
 
 /**
  * Interface representing a message in the conversation.
@@ -298,19 +309,14 @@ When the user asks a question, focus on providing direct, practical answers that
           const terminal = vscode.window.createTerminal("Ollama Model Installation");
           
           // Get the appropriate Ollama path for the current platform
-          this._getOllamaPath().then(ollamaPath => {
-            // Use the detected path with proper quoting
-            const isWindows = process.platform === 'win32';
-            this._isWSL().then(isWSL => {
-              if (isWindows || isWSL) {
-                // For Windows and WSL, we need to ensure proper quoting
-                terminal.sendText(`"${ollamaPath}" pull ${message.modelName}`);
-              } else {
-                // For macOS/Linux, use the command directly
-                terminal.sendText(`${ollamaPath} pull ${message.modelName}`);
-              }
-              terminal.show();
-            });
+          getOllamaPath().then(ollamaPath => {
+            // Quote path if needed (Windows, WSL, or contains spaces)
+            const needsQuotes = process.platform === 'win32' || ollamaPath.includes(' ');
+            const quotedPath = needsQuotes ? `"${ollamaPath}"` : ollamaPath;
+            
+            // Use the detected path
+            terminal.sendText(`${quotedPath} pull ${message.modelName}`);
+            terminal.show();
           });
         }
       });
@@ -396,242 +402,10 @@ When the user asks a question, focus on providing direct, practical answers that
   private async _checkOllamaInstalled() {
     if (!this._view) {
       console.error("Cannot check Ollama - view is undefined");
-      return;
-    }
-    
-    try {
-      // Try to run 'ollama -v' command to check if Ollama is installed
-      const { exec } = require('child_process');
-      
-      // On Windows, we need to be more careful about how we check
-      if (process.platform === 'win32') {
-        // Windows check (existing code)
-        // First try using the where command
-        exec('where ollama', async (whereError: any, whereStdout: string) => {
-          if (!whereError && whereStdout.trim()) {
-            // Found path to ollama, try to run it with version flag
-            const ollamaPath = whereStdout.trim();
-            console.log("Found Ollama at:", ollamaPath);
-            
-            exec(`"${ollamaPath}" -v`, (error: any, stdout: string) => {
-              if (!error) {
-                console.log("Ollama is installed:", stdout.trim());
-                
-                this._view?.webview.postMessage({
-                  command: "ollamaInstalledResult",
-                  isInstalled: true
-                });
-                
-                return true;
-              } else {
-                // Found the exe but couldn't run it
-                console.log("Ollama executable found but couldn't be run:", error);
-                this._view?.webview.postMessage({
-                  command: "ollamaInstalledResult",
-                  isInstalled: false
-                });
-                
-                return false;
-              }
-            });
-          } else {
-            // Not found in PATH, check common installation locations
-            const commonPaths = [
-              '%LOCALAPPDATA%\\Programs\\Ollama\\ollama.exe',
-              '%ProgramFiles%\\Ollama\\ollama.exe'
-            ];
-            
-            for (const path of commonPaths) {
-              try {
-                const expandedPath = path.replace(/%([^%]+)%/g, (_, varName) => 
-                  process.env[varName] || '');
-                  
-                const { existsSync } = require('fs');
-                if (existsSync(expandedPath)) {
-                  console.log("Found Ollama at common path:", expandedPath);
-                  
-                  exec(`"${expandedPath}" -v`, (error: any, stdout: string) => {
-                    if (!error) {
-                      console.log("Ollama is installed:", stdout.trim());
-                      
-                      this._view?.webview.postMessage({
-                        command: "ollamaInstalledResult",
-                        isInstalled: true
-                      });
-                      
-                      return true;
-                    } else {
-                      // Found the exe but couldn't run it
-                      console.log("Ollama executable found but couldn't be run:", error);
-                    }
-                  });
-                  
-                  return;
-                }
-              } catch (err) {
-                console.error("Error checking common path:", err);
-              }
-            }
-            
-            // Not found in common locations either
-            console.log("Ollama is not installed (not found in PATH or common locations)");
-            this._view?.webview.postMessage({
-              command: "ollamaInstalledResult",
-              isInstalled: false
-            });
-            
-            return false;
-          }
-        });
-      } else if (process.platform === 'linux') {
-        // For Linux, check in PATH first, then check common installation locations
-        exec('which ollama', (whichError: any, whichStdout: string) => {
-          if (!whichError && whichStdout.trim()) {
-            // Found in PATH, verify it works
-            const ollamaPath = whichStdout.trim();
-            console.log("Found Ollama at:", ollamaPath);
-            
-            // Check if it's functional
-            exec(`${ollamaPath} -v`, (error: any, stdout: string) => {
-              if (!error) {
-                console.log("Ollama is installed:", stdout.trim());
-                
-                this._view?.webview.postMessage({
-                  command: "ollamaInstalledResult",
-                  isInstalled: true
-                });
-                
-                return true;
-              } else {
-                // Found but not working, check service status
-                this._checkOllamaServiceStatus();
-              }
-            });
-          } else {
-            // Not found in PATH, check common Linux locations
-            const commonPaths = [
-              '/usr/local/bin/ollama',
-              '/usr/bin/ollama',
-              '/opt/ollama/ollama'
-            ];
-            
-            let found = false;
-            for (const path of commonPaths) {
-              try {
-                const { existsSync } = require('fs');
-                if (existsSync(path)) {
-                  console.log("Found Ollama at common path:", path);
-                  
-                  exec(`${path} -v`, (error: any, stdout: string) => {
-                    if (!error) {
-                      console.log("Ollama is installed:", stdout.trim());
-                      
-                      this._view?.webview.postMessage({
-                        command: "ollamaInstalledResult",
-                        isInstalled: true
-                      });
-                      
-                      found = true;
-                      return true;
-                    } else {
-                      // Found but not working
-                      console.log("Ollama executable found but couldn't be run:", error);
-                    }
-                  });
-                  
-                  if (found) break;
-                }
-              } catch (err) {
-                console.error("Error checking common path:", err);
-              }
-            }
-            
-            if (!found) {
-              // If not found in executables, check if the service is installed
-              this._checkOllamaServiceStatus();
-            }
-          }
-        });
-      } else {
-        // On macOS, just use the simple approach
-        exec('ollama -v', (error: any, stdout: string, stderr: string) => {
-          if (error) {
-            console.log("Ollama is not installed");
-            
-            this._view?.webview.postMessage({
-              command: "ollamaInstalledResult",
-              isInstalled: false
-            });
-            
-            return false;
-          }
-          
-          console.log("Ollama is installed:", stdout.trim());
-          
-          this._view?.webview.postMessage({
-            command: "ollamaInstalledResult",
-            isInstalled: true
-          });
-          
-          return true;
-        });
-      }
-    } catch (error) {
-      console.error("Error checking Ollama installation:", error);
-      
-      this._view?.webview.postMessage({
-        command: "ollamaInstalledResult",
-        isInstalled: false
-      });
-      
       return false;
     }
-  }
-  
-  /**
-   * Checks the status of the Ollama service on Linux systems
-   * @private
-   */
-  private _checkOllamaServiceStatus() {
-    const { exec } = require('child_process');
     
-    // Try systemctl first (for systemd-based distributions)
-    exec('systemctl is-active ollama.service', (error: any, stdout: string) => {
-      if (!error && stdout.trim() === 'active') {
-        console.log("Ollama service is active");
-        
-        this._view?.webview.postMessage({
-          command: "ollamaInstalledResult",
-          isInstalled: true
-        });
-        
-        return true;
-      } else {
-        // Try service command as a fallback
-        exec('service ollama status', (serviceError: any, serviceStdout: string) => {
-          if (!serviceError && serviceStdout.includes('running')) {
-            console.log("Ollama service is running");
-            
-            this._view?.webview.postMessage({
-              command: "ollamaInstalledResult",
-              isInstalled: true
-            });
-            
-            return true;
-          } else {
-            // Not found with service either
-            console.log("Ollama is not installed or not running");
-            
-            this._view?.webview.postMessage({
-              command: "ollamaInstalledResult",
-              isInstalled: false
-            });
-            
-            return false;
-          }
-        });
-      }
-    });
+    return await checkOllamaInstalled(this._view);
   }
 
   /**
@@ -687,12 +461,47 @@ When the user asks a question, focus on providing direct, practical answers that
    * @returns {Promise<boolean>} True if running in WSL
    */
   private async _isWSL(): Promise<boolean> {
+    console.log("Checking if running in WSL...");
+    
     const { exec } = require('child_process');
     
     return new Promise((resolve) => {
-      // Check for WSL by looking at /proc/version
-      exec('grep -i microsoft /proc/version', (error: any) => {
-        resolve(!error); // If no error, it found Microsoft in /proc/version, indicating WSL
+      // Multiple checks for WSL
+      // 1. Check /proc/version for Microsoft
+      exec('grep -i microsoft /proc/version', (error1: any, stdout1: string) => {
+        if (!error1 && stdout1.trim()) {
+          console.log("WSL detected by /proc/version containing 'Microsoft'");
+          resolve(true);
+          return;
+        }
+        
+        // 2. Check for WSL-specific environment variable
+        if (process.env.WSL_DISTRO_NAME) {
+          console.log("WSL detected by WSL_DISTRO_NAME environment variable");
+          resolve(true);
+          return;
+        }
+        
+        // 3. Check for WSL or WSL2 in uname
+        exec('uname -r', (error2: any, stdout2: string) => {
+          if (!error2 && (stdout2.includes('WSL') || stdout2.includes('Microsoft'))) {
+            console.log("WSL detected by uname -r output");
+            resolve(true);
+            return;
+          }
+          
+          // 4. Check for Windows paths
+          exec('ls -la /mnt/c 2>/dev/null', (error3: any) => {
+            if (!error3) {
+              console.log("WSL detected by presence of /mnt/c directory");
+              resolve(true);
+              return;
+            }
+            
+            console.log("Not running in WSL");
+            resolve(false);
+          });
+        });
       });
     });
   }
@@ -703,14 +512,13 @@ When the user asks a question, focus on providing direct, practical answers that
    * @returns {Promise<string>} The full path to the Ollama executable or just "ollama" if not found
    */
   private async _getOllamaPath(): Promise<string> {
-    const { exec } = require('child_process');
-    
     // First check if we're in WSL
     const isWSL = await this._isWSL();
     
     return new Promise((resolve) => {
       if (isWSL) {
         // In WSL, we should use the Linux binary if available, or wslpath to convert Windows path
+        const { exec } = require('child_process');
         exec('which ollama', async (whichError: any, whichStdout: string) => {
           if (!whichError && whichStdout.trim()) {
             // Linux binary is available in WSL
@@ -763,6 +571,7 @@ When the user asks a question, focus on providing direct, practical answers that
         });
       } else if (process.platform === 'win32') {
         // On Windows, check common installation locations
+        const { exec } = require('child_process');
         exec('where ollama', (error: any, stdout: string) => {
           if (error || !stdout.trim()) {
             // If not found in PATH, try common locations
@@ -1099,86 +908,24 @@ When the user asks a question, focus on providing direct, practical answers that
     try {
       const terminal = vscode.window.createTerminal("Ollama Installation");
       
-      // Check if we're in WSL
-      const isWSL = await this._isWSL();
-      
-      // Determine platform and use appropriate install command
+      // Check for WSL and platform
+      const wslDetected = await isWSL() || detectWSLFromEnvironment();
       const platform = process.platform;
       
-      if (isWSL) {
-        // Handle WSL specifically - use Linux installation method in WSL
-        terminal.sendText('echo "Installing Ollama in WSL (Windows Subsystem for Linux)..."');
-        terminal.sendText('echo "You have two options for using Ollama with WSL:"');
-        terminal.sendText('echo');
-        terminal.sendText('echo "Option 1: Install Ollama natively in WSL (recommended)"');
-        terminal.sendText('echo "  This will run the Linux installation script:"');
-        terminal.sendText('echo "  curl -fsSL https://ollama.com/install.sh | sh"');
-        terminal.sendText('echo');
-        terminal.sendText('echo "Option 2: Access Windows Ollama from WSL"');
-        terminal.sendText('echo "  1. Open Windows Explorer (you can type: explorer.exe .)"');
-        terminal.sendText('echo "  2. Download Ollama from: https://ollama.com/download"');
-        terminal.sendText('echo "  3. Install in Windows"');
-        terminal.sendText('echo "  4. Access from WSL using: /mnt/c/Users/YOUR_USERNAME/AppData/Local/Programs/Ollama/ollama.exe"');
-        terminal.sendText('echo');
-        terminal.sendText('echo "Would you like to install Ollama in WSL now? (y/n)"');
-        terminal.sendText('read REPLY');
-        terminal.sendText('if [[ $REPLY =~ ^[Yy]$ ]]; then');
-        terminal.sendText('  echo "Installing Ollama in WSL..."');
-        terminal.sendText('  curl -fsSL https://ollama.com/install.sh | sh');
-        terminal.sendText('  echo "Installation completed. You might need to restart VS Code."');
-        terminal.sendText('else');
-        terminal.sendText('  echo "Installation cancelled. Please install Ollama manually."');
-        terminal.sendText('  echo "You can download it from: https://ollama.com/download"');
-        terminal.sendText('fi');
+      console.log("Installation environment - Platform:", platform, "WSL:", wslDetected);
+      
+      // Add debug info to terminal
+      addTerminalDebugInfo(terminal, wslDetected);
+      
+      // Use the appropriate installation method based on environment
+      if (wslDetected) {
+        installOllamaInWSL(terminal);
       } else if (platform === 'darwin') {
-        // macOS installation command
-        terminal.sendText('brew install ollama');
+        installOllamaOnMacOS(terminal);
       } else if (platform === 'linux') {
-        // Linux installation - enhanced with better instructions and fallback options
-        terminal.sendText('echo "Installing Ollama on Linux..."');
-        terminal.sendText('echo "This will download and run the official Ollama installation script."');
-        terminal.sendText('echo "You may be prompted for your password to complete the installation."');
-        terminal.sendText('echo');
-        
-        // Main installation command
-        terminal.sendText('curl -fsSL https://ollama.com/install.sh | sh');
-        
-        // Additional guidance in case of common issues
-        terminal.sendText('echo');
-        terminal.sendText('echo "If the installation failed, here are some common solutions:"');
-        terminal.sendText('echo "1. If you got a permission error, try running with sudo:"');
-        terminal.sendText('echo "   curl -fsSL https://ollama.com/install.sh | sudo sh"');
-        terminal.sendText('echo');
-        terminal.sendText('echo "2. For systems without curl, use wget:"');
-        terminal.sendText('echo "   wget -qO- https://ollama.com/install.sh | sh"');
-        terminal.sendText('echo');
-        terminal.sendText('echo "3. If you\'re using a non-standard Linux distribution, visit:"');
-        terminal.sendText('echo "   https://github.com/ollama/ollama/blob/main/README.md"');
-        terminal.sendText('echo');
-        terminal.sendText('echo "After installation completes, you may need to start the Ollama service:"');
-        terminal.sendText('echo "  sudo systemctl start ollama"');
-        terminal.sendText('echo');
+        installOllamaOnLinux(terminal);
       } else if (platform === 'win32') {
-        // Windows installation (existing code)
-        terminal.sendText('echo Downloading Ollama installer for Windows...');
-        terminal.sendText('echo This may take a moment. Please wait...');
-        
-        // Download the installer to the temp directory
-        terminal.sendText('Invoke-WebRequest -UseBasicParsing "https://ollama.com/download/ollama-installer.exe" -OutFile "$env:TEMP\\ollama-installer.exe"');
-        
-        // Provide instructions for the user
-        terminal.sendText('echo');
-        terminal.sendText('echo Installer downloaded to: $env:TEMP\\ollama-installer.exe');
-        terminal.sendText('echo');
-        terminal.sendText('echo *** IMPORTANT: Please follow these steps: ***');
-        terminal.sendText('echo 1. Open File Explorer and navigate to %TEMP%');
-        terminal.sendText('echo 2. Run the "ollama-installer.exe" file');
-        terminal.sendText('echo 3. Follow the installation wizard');
-        terminal.sendText('echo 4. After installation completes, restart VS Code');
-        terminal.sendText('echo');
-        terminal.sendText('echo Press Enter to open the temp folder...');
-        terminal.sendText('pause');
-        terminal.sendText('start %TEMP%');
+        installOllamaOnWindows(terminal);
       } else {
         // Fallback for unsupported platforms
         vscode.window.showErrorMessage(`Unsupported platform: ${platform}. Please visit https://ollama.com/download for installation instructions.`);
@@ -1189,7 +936,7 @@ When the user asks a question, focus on providing direct, practical answers that
       terminal.show();
       
       // Show a message indicating installation has started
-      if (platform === 'win32' && !isWSL) {
+      if (platform === 'win32' && !wslDetected) {
         vscode.window.showInformationMessage('Ollama installer downloaded. Please follow the instructions in the terminal to complete installation.');
       } else {
         vscode.window.showInformationMessage('Ollama installation has started in the terminal');

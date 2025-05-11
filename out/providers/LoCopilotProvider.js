@@ -301,7 +301,7 @@ When the user asks a question, focus on providing direct, practical answers that
                 }
                 else if (message.command === "installOllama") {
                     // Install Ollama using the appropriate terminal command based on OS
-                    await this._installOllamaWithTerminal();
+                    await this._installOllama();
                 }
                 else if (message.command === "installModel") {
                     // Show terminal to install a model
@@ -429,59 +429,15 @@ When the user asks a question, focus on providing direct, practical answers that
         }
     }
     /**
-     * Checks if the current environment is WSL (Windows Subsystem for Linux)
-     * @private
-     * @returns {Promise<boolean>} True if running in WSL
-     */
-    async _isWSL() {
-        console.log("Checking if running in WSL...");
-        const { exec } = require('child_process');
-        return new Promise((resolve) => {
-            // Multiple checks for WSL
-            // 1. Check /proc/version for Microsoft
-            exec('grep -i microsoft /proc/version', (error1, stdout1) => {
-                if (!error1 && stdout1.trim()) {
-                    console.log("WSL detected by /proc/version containing 'Microsoft'");
-                    resolve(true);
-                    return;
-                }
-                // 2. Check for WSL-specific environment variable
-                if (process.env.WSL_DISTRO_NAME) {
-                    console.log("WSL detected by WSL_DISTRO_NAME environment variable");
-                    resolve(true);
-                    return;
-                }
-                // 3. Check for WSL or WSL2 in uname
-                exec('uname -r', (error2, stdout2) => {
-                    if (!error2 && (stdout2.includes('WSL') || stdout2.includes('Microsoft'))) {
-                        console.log("WSL detected by uname -r output");
-                        resolve(true);
-                        return;
-                    }
-                    // 4. Check for Windows paths
-                    exec('ls -la /mnt/c 2>/dev/null', (error3) => {
-                        if (!error3) {
-                            console.log("WSL detected by presence of /mnt/c directory");
-                            resolve(true);
-                            return;
-                        }
-                        console.log("Not running in WSL");
-                        resolve(false);
-                    });
-                });
-            });
-        });
-    }
-    /**
      * Gets the Ollama executable path
      * @private
      * @returns {Promise<string>} The full path to the Ollama executable or just "ollama" if not found
      */
     async _getOllamaPath() {
         // First check if we're in WSL
-        const isWSL = await this._isWSL();
+        const isWSLEnv = await (0, platformUtils_1.isWSL)();
         return new Promise((resolve) => {
-            if (isWSL) {
+            if (isWSLEnv) {
                 // In WSL, we should use the Linux binary if available, or wslpath to convert Windows path
                 const { exec } = require('child_process');
                 exec('which ollama', async (whichError, whichStdout) => {
@@ -839,57 +795,50 @@ When the user asks a question, focus on providing direct, practical answers that
         }
     }
     /**
-     * Installs Ollama using the appropriate terminal command based on the user's OS
+     * Handles the command to install Ollama
      * @private
      */
-    async _installOllamaWithTerminal() {
+    async _installOllama() {
         try {
-            const terminal = vscode.window.createTerminal("Ollama Installation");
-            // Check for WSL and platform
-            const wslDetected = await (0, platformUtils_1.isWSL)() || (0, platformUtils_1.detectWSLFromEnvironment)();
             const platform = process.platform;
-            console.log("Installation environment - Platform:", platform, "WSL:", wslDetected);
+            console.log(`Installing Ollama on platform: ${platform}`);
+            const terminal = vscode.window.createTerminal("LoCopilot: Ollama Installation");
+            terminal.show();
+            // Check if we're in WSL - use imported method
+            const wslEnvironment = await (0, platformUtils_1.isWSL)() || (0, platformUtils_1.detectWSLFromEnvironment)();
             // Add debug info to terminal
-            (0, platformUtils_1.addTerminalDebugInfo)(terminal, wslDetected);
-            // Use the appropriate installation method based on environment
-            if (wslDetected) {
+            (0, platformUtils_1.addTerminalDebugInfo)(terminal, wslEnvironment);
+            // Installation commands based on platform/environment
+            if (wslEnvironment) {
+                // Install in WSL environment
                 (0, platformUtils_1.installOllamaInWSL)(terminal);
             }
             else if (platform === 'darwin') {
+                // macOS
                 (0, platformUtils_1.installOllamaOnMacOS)(terminal);
             }
             else if (platform === 'linux') {
+                // Linux
                 (0, platformUtils_1.installOllamaOnLinux)(terminal);
             }
             else if (platform === 'win32') {
+                // Windows
                 (0, platformUtils_1.installOllamaOnWindows)(terminal);
             }
             else {
-                // Fallback for unsupported platforms
-                vscode.window.showErrorMessage(`Unsupported platform: ${platform}. Please visit https://ollama.com/download for installation instructions.`);
-                vscode.env.openExternal(vscode.Uri.parse("https://ollama.com/download"));
-                return;
+                terminal.sendText(`echo "Sorry, your platform ${platform} is not supported for automatic installation."`);
+                terminal.sendText('echo "Please visit https://ollama.com/download to install Ollama manually."');
             }
-            terminal.show();
-            // Show a message indicating installation has started
-            if (platform === 'win32' && !wslDetected) {
-                vscode.window.showInformationMessage('Ollama installer downloaded. Please follow the instructions in the terminal to complete installation.');
-            }
-            else {
-                vscode.window.showInformationMessage('Ollama installation has started in the terminal');
-                // After a reasonable delay, check if Ollama is now installed
-                // The delay gives time for the installation to complete
-                setTimeout(() => {
-                    vscode.window.showInformationMessage('Checking if Ollama was installed successfully...');
-                    this._checkOllamaInstalled();
-                }, 10000); // Check after 10 seconds - user may need to manually verify when installation is complete
+            // Final update to UI
+            if (this._view) {
+                this._view.webview.postMessage({
+                    command: "installationStarted"
+                });
             }
         }
         catch (error) {
-            console.error("Error starting Ollama installation:", error);
-            vscode.window.showErrorMessage(`Failed to start Ollama installation: ${error instanceof Error ? error.message : String(error)}`);
-            // Fallback to browser download page
-            vscode.env.openExternal(vscode.Uri.parse("https://ollama.com/download"));
+            console.error("Error installing Ollama:", error);
+            vscode.window.showErrorMessage("Failed to install Ollama. Please install manually from https://ollama.com/download");
         }
     }
 }

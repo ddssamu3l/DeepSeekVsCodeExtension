@@ -3,11 +3,16 @@
 ## 🎬 Features in Action
 
 ### Code Selection & AI Assistance
-<img src="media/text-selection-demo.gif" alt="Code Selection Demo" width="800" />
+<video width="800" controls>
+  <source src="media/text-selection.mp4" type="video/mp4">
+  Your browser does not support the video tag.
+</video>
 
 ### Project Analysis with Codebase Crawling
-<img src="media/crawl-codebase-demo.gif" alt="Codebase Crawling Demo" width="800" />
-
+<video width="800" controls>
+  <source src="media/codebase-crawl.mp4" type="video/mp4">
+  Your browser does not support the video tag.
+</video>
 
 ## ✨ Features
 - ### 🤖 Local LLM Coding Assistant

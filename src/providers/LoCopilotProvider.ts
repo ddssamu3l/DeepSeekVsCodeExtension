@@ -76,11 +76,17 @@ IMPORTANT LIMITATIONS:
 When the user asks a question, focus on providing direct, practical answers that address their specific needs.`,
       },
     ];
+    // Set default model - this will be checked and potentially changed in the webview
     this._currentModel = "gemma3:4b";
+    
+    // Track the active editor
     this._editor = vscode.window.activeTextEditor;
     vscode.window.onDidChangeActiveTextEditor(editor => {
       this._editor = editor;
     });
+    
+    // Initialize context info with default values
+    this._contextInfo = { used: 0, total: 8192 };
     
     // Disable auto-refresh by default (require explicit crawl)
     this._autoRefreshEnabled = false;
@@ -88,8 +94,8 @@ When the user asks a question, focus on providing direct, practical answers that
     // Set up file system watcher to track changes in the workspace
     this._setupFileWatcher();
     
-    // Get context window size for the model
-    this._getModelContextSize();
+    // We'll get context window size once the webview is initialized and
+    // we confirm the model is actually installed
   }
 
   /**
@@ -269,9 +275,10 @@ When the user asks a question, focus on providing direct, practical answers that
               this._currentModel = message.modelName;
               
               // Get and update context window size for the new model
+              // This will verify if the model is installed first
               await this._getModelContextSize();
-              
-              // Always send a context update even if the size doesn't change
+            } else {
+              // Even if the model hasn't changed, send a context update
               this._sendContextUpdate();
             }
           } catch (error) {
@@ -500,6 +507,18 @@ When the user asks a question, focus on providing direct, practical answers that
    */
   private async _getModelContextSize() {
     try {
+      // First check if the model is installed
+      try {
+        await ollama.show({ model: this._currentModel });
+      } catch (error) {
+        // Model is not installed, log and use default context size
+        console.log(`Model ${this._currentModel} is not installed, using default context window size`);
+        // Still send context update with default size
+        this._sendContextUpdate();
+        return;
+      }
+      
+      // Model is installed, get its context window size
       const modelInfo = await ollama.show({ model: this._currentModel });
       
       // The Ollama API response structure is not well-typed in the package
@@ -514,6 +533,8 @@ When the user asks a question, focus on providing direct, practical answers that
       }
     } catch (error) {
       console.warn(`Could not get context window size for model ${this._currentModel}:`, error);
+      // Still send context update with default size
+      this._sendContextUpdate();
     }
   }
 

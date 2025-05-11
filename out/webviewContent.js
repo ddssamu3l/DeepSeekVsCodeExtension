@@ -111,14 +111,15 @@ function getWebviewContent() {
           text-align: center;
           background-color: var(--vscode-notifications-background);
           border: 1px solid var(--vscode-notifications-border);
-          border-radius: 5px;
-          padding: 16px;
-          margin: 20px 0;
+          padding: 20px;
+          margin: 0 0 20px 0;
           display: flex;
           flex-direction: column;
           align-items: center;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+          box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
           animation: fadeIn 0.3s ease-in-out;
+          position: relative;
+          z-index: 10;
         }
         
         @keyframes fadeIn {
@@ -130,6 +131,8 @@ function getWebviewContent() {
           margin-top: 0;
           margin-bottom: 12px;
           color: var(--vscode-editor-foreground);
+          font-size: 16px;
+          font-weight: 600;
         }
         
         .install-prompt p {
@@ -144,7 +147,6 @@ function getWebviewContent() {
           color: var(--vscode-button-foreground);
           border: none;
           padding: 8px 16px;
-          border-radius: 4px;
           cursor: pointer;
           font-weight: 500;
           transition: all 0.2s;
@@ -341,14 +343,41 @@ function getWebviewContent() {
           ollamaIsInstalled = await checkOllamaInstalled();
           console.log("Ollama installed:", ollamaIsInstalled);
           
+          // Clear any existing prompts to prevent duplicates
+          const existingOllamaPrompt = document.getElementById("ollamaInstallPrompt");
+          const existingModelPrompt = document.getElementById("modelInstallPrompt");
+          if (existingOllamaPrompt) existingOllamaPrompt.remove();
+          if (existingModelPrompt) existingModelPrompt.remove();
+          
           // Only check model if Ollama is installed
           if (ollamaIsInstalled) {
-            // Default to CodeLlama instruct model
+            // Default to Gemma 3 4b model
             modelIsInstalled = await checkSelectedModel("gemma3:4b");
           }
           
           // Update UI based on checks
           updateUI();
+          
+          // Ensure the installation prompts are properly positioned at startup
+          const chatContainer = document.getElementById('chatContainer');
+          const welcomeMessage = document.querySelector('.welcome-message');
+          const ollamaPrompt = document.getElementById("ollamaInstallPrompt");
+          const modelPrompt = document.getElementById("modelInstallPrompt");
+          
+          // Reposition the prompts above welcome message if needed
+          if (welcomeMessage && ollamaPrompt && welcomeMessage.compareDocumentPosition(ollamaPrompt) & Node.DOCUMENT_POSITION_FOLLOWING) {
+            // Ollama prompt is after welcome message, move it before
+            chatContainer.insertBefore(ollamaPrompt, welcomeMessage);
+            
+            // If model prompt exists, position it properly too
+            if (modelPrompt) {
+              ollamaPrompt.after(modelPrompt);
+            }
+          } else if (welcomeMessage && modelPrompt && !ollamaPrompt && 
+                    welcomeMessage.compareDocumentPosition(modelPrompt) & Node.DOCUMENT_POSITION_FOLLOWING) {
+            // Model prompt is after welcome message but no Ollama prompt
+            chatContainer.insertBefore(modelPrompt, welcomeMessage);
+          }
         }
         
         // Start initialization
@@ -453,10 +482,16 @@ function getWebviewContent() {
           promptDiv.appendChild(paragraph);
           promptDiv.appendChild(button);
           
-          // Insert at the beginning of the container
-          if (chatContainer.firstChild) {
+          // Always insert at the beginning of the container, before any other content
+          const welcomeMessage = document.querySelector('.welcome-message');
+          if (welcomeMessage) {
+            // Insert before welcome message
+            chatContainer.insertBefore(promptDiv, welcomeMessage);
+          } else if (chatContainer.firstChild) {
+            // Insert before first child of any type
             chatContainer.insertBefore(promptDiv, chatContainer.firstChild);
           } else {
+            // Container is empty
             chatContainer.appendChild(promptDiv);
           }
           
@@ -500,11 +535,19 @@ function getWebviewContent() {
           
           // Insert after Ollama prompt if it exists, otherwise at the beginning
           const ollamaPrompt = document.getElementById("ollamaInstallPrompt");
+          const welcomeMessage = document.querySelector('.welcome-message');
+          
           if (ollamaPrompt) {
+            // Place after the Ollama prompt
             ollamaPrompt.after(promptDiv);
+          } else if (welcomeMessage) {
+            // Place before the welcome message
+            chatContainer.insertBefore(promptDiv, welcomeMessage);
           } else if (chatContainer.firstChild) {
+            // Place at the beginning
             chatContainer.insertBefore(promptDiv, chatContainer.firstChild);
           } else {
+            // Container is empty
             chatContainer.appendChild(promptDiv);
           }
           
@@ -594,15 +637,17 @@ function getWebviewContent() {
             
             // Then check if the model is installed
             modelIsInstalled = await modelInstalled(modelName);
-  
-            updateUI();
-            if(modelIsInstalled){
+            
+            // Only set the model if it's installed
+            if (modelIsInstalled) {
+              // Update the extension with the selected model
               vscode.postMessage({ command: 'setModel', modelName: modelName });
               
               // Also request initial context info update
               vscode.postMessage({ command: 'requestContextInfo' });
             }
-            
+  
+            updateUI();
             return modelIsInstalled;
           } catch (error) {
             console.error('Error during model check:', error);
@@ -626,6 +671,10 @@ function getWebviewContent() {
         function addMessage(role, content) {
           const chatContainer = document.getElementById('chatContainer');
           
+          // Save any installation prompts
+          const ollamaPrompt = document.getElementById('ollamaInstallPrompt');
+          const modelPrompt = document.getElementById('modelInstallPrompt');
+          
           // Clear welcome message if it exists
           const welcomeMessageDiv = document.querySelector('.welcome-message');
           if (welcomeMessageDiv) {
@@ -646,6 +695,20 @@ function getWebviewContent() {
             messageDiv.id = "user-message-" + Date.now();
           }
 
+          // Restore installation prompts at the beginning of the container if they existed
+          if (ollamaPrompt) {
+            chatContainer.appendChild(ollamaPrompt);
+          }
+          
+          if (modelPrompt) {
+            if (ollamaPrompt) {
+              ollamaPrompt.after(modelPrompt);
+            } else {
+              chatContainer.appendChild(modelPrompt);
+            }
+          }
+          
+          // Add the message after the prompts
           chatContainer.appendChild(messageDiv);
 
           // Scroll to bottom
@@ -657,7 +720,34 @@ function getWebviewContent() {
         // Clear all messages from the chat
         function clearChat() {
           const chatContainer = document.getElementById('chatContainer');
+          
+          // Save installation prompts if they exist
+          const ollamaPrompt = document.getElementById('ollamaInstallPrompt');
+          const modelPrompt = document.getElementById('modelInstallPrompt');
+          
+          // Clear the chat container
           chatContainer.innerHTML = '<div class="welcome-message">' + welcomeMessage + '</div>';
+          
+          // Restore installation prompts if they existed
+          if (ollamaPrompt) {
+            const welcomeMessage = document.querySelector('.welcome-message');
+            if (welcomeMessage) {
+              welcomeMessage.after(ollamaPrompt);
+            } else {
+              chatContainer.prepend(ollamaPrompt);
+            }
+          }
+          
+          if (modelPrompt && !ollamaPrompt) {
+            const welcomeMessage = document.querySelector('.welcome-message');
+            if (welcomeMessage) {
+              welcomeMessage.after(modelPrompt);
+            } else {
+              chatContainer.prepend(modelPrompt); 
+            }
+          } else if (modelPrompt && ollamaPrompt) {
+            ollamaPrompt.after(modelPrompt);
+          }
         }
         
         // Update the current streaming assistant message (identified by thinking indicator)
@@ -686,7 +776,10 @@ function getWebviewContent() {
         
         // Render a full conversation from history
         function renderConversation(messages) {
+          // Clear the chat first
           clearChat();
+          
+          // Then render messages
           if (messages && messages.length > 0) {
             messages.forEach(msg => {
               if(msg.role !== "system"){
@@ -694,6 +787,9 @@ function getWebviewContent() {
               }
             });
           }
+          
+          // Re-check if prompts should be shown
+          updateUI();
         }
 
         // Update context meter UI
@@ -875,11 +971,40 @@ function getWebviewContent() {
             else if (command === "loadConversation") {
               // Load an existing conversation
               if (messages && messages.length > 0) {
+                // Save current installation states
+                const wasOllamaInstalled = ollamaIsInstalled;
+                const wasModelInstalled = modelIsInstalled;
+                
+                // Render the conversation
                 renderConversation(messages);
+                
+                // Restore installation status
+                ollamaIsInstalled = wasOllamaInstalled;
+                modelIsInstalled = wasModelInstalled;
                 
                 // Reset context usage counter when loading a conversation
                 currentContextUsage = 0;
                 updateContextMeter(currentContextUsage, maxContextSize);
+                
+                // Make sure UI reflects the correct installation state
+                updateUI();
+                
+                // Fix prompt positioning - force installation prompts to be above everything else
+                const chatContainer = document.getElementById('chatContainer');
+                const ollamaPrompt = document.getElementById("ollamaInstallPrompt");
+                const modelPrompt = document.getElementById("modelInstallPrompt");
+                
+                if (ollamaPrompt && chatContainer.firstChild !== ollamaPrompt) {
+                  chatContainer.insertBefore(ollamaPrompt, chatContainer.firstChild);
+                }
+                
+                if (modelPrompt) {
+                  if (ollamaPrompt) {
+                    ollamaPrompt.after(modelPrompt);
+                  } else if (chatContainer.firstChild !== modelPrompt) {
+                    chatContainer.insertBefore(modelPrompt, chatContainer.firstChild);
+                  }
+                }
               }
             }
             else if (command === "contextUpdate") {
@@ -904,13 +1029,18 @@ function getWebviewContent() {
             else if (command === "modelInstalledResult") {
               console.log("Model installation check result:", isInstalled);
               modelIsInstalled = isInstalled;
-              updateUI();
               
               if (modelIsInstalled) {
-                // Update context window size based on the selected model
+                // Only if the model is installed, update the model on the extension side
+                // This will also get the context window size from the actual model
+                vscode.postMessage({ command: 'setModel', modelName: selectedModelName });
+                
+                // Update context window size based on our local mapping
                 maxContextSize = getContextSizeForModel(selectedModelName);
                 updateContextMeter(currentContextUsage, maxContextSize);
               }
+              
+              updateUI();
             }
             else if (command === "crawlStatus") {
               const { status, tokenCount, error } = event.data;

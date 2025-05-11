@@ -61,6 +61,24 @@ Invoke-WebRequest -UseBasicParsing "https://ollama.com/download/ollama-installer
 
 The LoCopilot extension can also help install Ollama for you with the appropriate method for your operating system.
 
+**Windows Subsystem for Linux (WSL):**
+
+If you're using WSL, you have two options:
+
+1. Install Ollama for Linux in your WSL environment:
+```bash
+curl -fsSL https://ollama.com/install.sh | sh
+```
+
+2. Access your Windows Ollama installation from WSL:
+   - First install Ollama for Windows using the Windows installer
+   - In WSL, you can access it using the Windows path converted to WSL format:
+   ```bash
+   /mnt/c/Users/YOUR_USERNAME/AppData/Local/Programs/Ollama/ollama.exe
+   ```
+
+LoCopilot will attempt to automatically detect and use the correct Ollama installation regardless of which option you choose.
+
 ## 💡 Next Steps
 After installing Ollama, be sure to install at least 1 model before running the extension.
 

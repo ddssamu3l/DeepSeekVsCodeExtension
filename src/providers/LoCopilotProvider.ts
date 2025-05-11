@@ -297,19 +297,21 @@ When the user asks a question, focus on providing direct, practical answers that
           // Show terminal to install a model
           const terminal = vscode.window.createTerminal("Ollama Model Installation");
           
-          // Use different approach based on platform
-          if (process.platform === 'win32') {
-            // On Windows, we need to make sure we're using the full path
-            this._getOllamaPath().then(ollamaPath => {
-              // Wrap path in quotes in case it contains spaces
-              terminal.sendText(`"${ollamaPath}" pull ${message.modelName}`);
+          // Get the appropriate Ollama path for the current platform
+          this._getOllamaPath().then(ollamaPath => {
+            // Use the detected path with proper quoting
+            const isWindows = process.platform === 'win32';
+            this._isWSL().then(isWSL => {
+              if (isWindows || isWSL) {
+                // For Windows and WSL, we need to ensure proper quoting
+                terminal.sendText(`"${ollamaPath}" pull ${message.modelName}`);
+              } else {
+                // For macOS/Linux, use the command directly
+                terminal.sendText(`${ollamaPath} pull ${message.modelName}`);
+              }
               terminal.show();
             });
-          } else {
-            // On macOS/Linux, just use the command directly
-            terminal.sendText(`ollama pull ${message.modelName}`);
-            terminal.show();
-          }
+          });
         }
       });
     } catch (error) {
@@ -680,6 +682,22 @@ When the user asks a question, focus on providing direct, practical answers that
   }
 
   /**
+   * Checks if the current environment is WSL (Windows Subsystem for Linux)
+   * @private
+   * @returns {Promise<boolean>} True if running in WSL
+   */
+  private async _isWSL(): Promise<boolean> {
+    const { exec } = require('child_process');
+    
+    return new Promise((resolve) => {
+      // Check for WSL by looking at /proc/version
+      exec('grep -i microsoft /proc/version', (error: any) => {
+        resolve(!error); // If no error, it found Microsoft in /proc/version, indicating WSL
+      });
+    });
+  }
+
+  /**
    * Gets the Ollama executable path
    * @private
    * @returns {Promise<string>} The full path to the Ollama executable or just "ollama" if not found
@@ -687,8 +705,63 @@ When the user asks a question, focus on providing direct, practical answers that
   private async _getOllamaPath(): Promise<string> {
     const { exec } = require('child_process');
     
+    // First check if we're in WSL
+    const isWSL = await this._isWSL();
+    
     return new Promise((resolve) => {
-      if (process.platform === 'win32') {
+      if (isWSL) {
+        // In WSL, we should use the Linux binary if available, or wslpath to convert Windows path
+        exec('which ollama', async (whichError: any, whichStdout: string) => {
+          if (!whichError && whichStdout.trim()) {
+            // Linux binary is available in WSL
+            resolve(whichStdout.trim());
+          } else {
+            // Try to find the Windows binary and convert its path
+            const commonWindowsPaths = [
+              '%LOCALAPPDATA%\\Programs\\Ollama\\ollama.exe',
+              '%ProgramFiles%\\Ollama\\ollama.exe'
+            ];
+            
+            for (const windowsPath of commonWindowsPaths) {
+              try {
+                // Expand environment variables
+                const expandedPath = windowsPath.replace(/%([^%]+)%/g, (_, varName) => {
+                  // WSL can't access Windows env vars directly, so we hardcode common ones
+                  if (varName === 'LOCALAPPDATA') {
+                    return '/mnt/c/Users/' + process.env.USER + '/AppData/Local';
+                  } else if (varName === 'ProgramFiles') {
+                    return '/mnt/c/Program Files';
+                  }
+                  return '';
+                });
+                
+                // Convert the Windows path to WSL path format
+                exec(`wslpath "${expandedPath}"`, (pathError: any, pathStdout: string) => {
+                  if (!pathError && pathStdout.trim()) {
+                    const wslPath = pathStdout.trim();
+                    // Check if this file exists
+                    exec(`test -f "${wslPath}" && echo exists`, (testError: any, testStdout: string) => {
+                      if (!testError && testStdout.includes('exists')) {
+                        resolve(wslPath);
+                      } else {
+                        // If we've tried all paths and none worked, just return the Linux command
+                        resolve('ollama');
+                      }
+                    });
+                  } else {
+                    resolve('ollama');
+                  }
+                });
+              } catch (err) {
+                console.error("Error converting Windows path for WSL:", err);
+              }
+            }
+            
+            // Fallback to just using 'ollama' command
+            resolve('ollama');
+          }
+        });
+      } else if (process.platform === 'win32') {
         // On Windows, check common installation locations
         exec('where ollama', (error: any, stdout: string) => {
           if (error || !stdout.trim()) {

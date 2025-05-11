@@ -65,18 +65,49 @@ export async function isWSL(): Promise<boolean> {
 export function detectWSLFromEnvironment(): boolean {
   const platform = process.platform;
   const shellEnv = process.env.SHELL || '';
+  const pathEnv = process.env.PATH || '';
+  const homeEnv = process.env.HOME || '';
   
-  const forcedWSLDetection = 
-    (platform === 'linux' && process.env.WSLENV !== undefined) || 
-    (shellEnv.includes('zsh') && process.env.HOME?.includes('/home/')) ||
-    (process.env.TERM_PROGRAM === 'vscode' && platform === 'linux' && process.env.PATH?.includes('/mnt/c/'));
+  // More comprehensive WSL detection
+  const wslIndicators = [
+    process.env.WSLENV !== undefined,                            // WSLENV is set in WSL
+    process.env.WSL_DISTRO_NAME !== undefined,                   // WSL_DISTRO_NAME is set in WSL
+    platform === 'linux' && pathEnv.includes('/mnt/c/'),         // PATH contains Windows mounted drives
+    platform === 'linux' && homeEnv.includes('/home/'),          // HOME is in Linux format
+    shellEnv.includes('zsh') && homeEnv.includes('/home/'),      // Using zsh in Linux home
+    shellEnv.includes('bash') && homeEnv.includes('/home/'),     // Using bash in Linux home
+    process.env.TERM_PROGRAM === 'vscode' && platform === 'linux' // VS Code in Linux
+  ];
   
-  if (forcedWSLDetection) {
-    console.log("WSL environment detected through shell environment");
-    console.log("Shell:", shellEnv, "Home:", process.env.HOME);
+  // Check if we have a Windows username in environment but Linux paths
+  const usernameEnv = process.env.USER || process.env.USERNAME || '';
+  if (usernameEnv && platform === 'linux' && homeEnv.includes('/home/')) {
+    // This is a strong indicator of WSL
+    wslIndicators.push(true);
   }
   
-  return forcedWSLDetection === undefined ? false : forcedWSLDetection;
+  // If any Windows paths are present in the PATH env variable while we're on Linux
+  if (platform === 'linux' && 
+      (pathEnv.includes('\\Windows\\') || 
+       pathEnv.includes('Program Files') || 
+       pathEnv.includes('\\AppData\\'))) {
+    wslIndicators.push(true);
+  }
+
+  // Count how many indicators are true
+  const wslScore = wslIndicators.filter(Boolean).length;
+  
+  // For debugging
+  if (wslScore > 0) {
+    console.log(`WSL environment detected with score ${wslScore}/${wslIndicators.length}`);
+    console.log("Platform:", platform);
+    console.log("Shell:", shellEnv);
+    console.log("Home:", homeEnv);
+    console.log("User:", usernameEnv);
+  }
+  
+  // If we have at least one indicator, consider it WSL
+  return wslScore > 0;
 }
 
 /**
@@ -93,69 +124,99 @@ export async function getOllamaPath(): Promise<string> {
       const { stdout: whichOutput, stderr: whichError } = await exec('which ollama 2>/dev/null || echo ""');
       if (whichOutput.trim()) {
         // Linux binary is available in WSL
+        console.log("Found native Ollama binary in WSL:", whichOutput.trim());
         return whichOutput.trim();
       } else {
-        // Try to find the Windows binary and convert its path
-        const commonWindowsPaths = [
-          '%LOCALAPPDATA%\\Programs\\Ollama\\ollama.exe',
-          '%ProgramFiles%\\Ollama\\ollama.exe'
-        ];
+        console.log("Native Ollama not found in WSL, looking for Windows installation...");
         
-        for (const windowsPath of commonWindowsPaths) {
-          try {
-            // Expand environment variables
-            const expandedPath = windowsPath.replace(/%([^%]+)%/g, (_, varName) => {
-              // WSL can't access Windows env vars directly, so we hardcode common ones
-              if (varName === 'LOCALAPPDATA') {
-                return '/mnt/c/Users/' + process.env.USER + '/AppData/Local';
-              } else if (varName === 'ProgramFiles') {
-                return '/mnt/c/Program Files';
-              }
-              return '';
-            });
-            
-            // Convert the Windows path to WSL path format
+        // Try to find the Windows binary and convert its path using wslpath
+        try {
+          // Get username from environment for more accurate path construction
+          const username = process.env.USER || process.env.USERNAME || '';
+          
+          // Build paths that are more likely to be correct for this specific user
+          const userSpecificPaths = [];
+          
+          if (username) {
+            // Try with the actual Windows username from environment
+            userSpecificPaths.push(`/mnt/c/Users/${username}/AppData/Local/Programs/Ollama/ollama.exe`);
+          }
+          
+          // Add standard locations
+          const commonWindowsPaths = [
+            '/mnt/c/Program Files/Ollama/ollama.exe',
+            '/mnt/c/Users/*/AppData/Local/Programs/Ollama/ollama.exe'
+          ];
+          
+          // 1. First try directly accessing the WSL path equivalents
+          for (const path of [...userSpecificPaths, ...commonWindowsPaths]) {
             try {
-              const { stdout: wslPath } = await exec(`wslpath "${expandedPath}"`);
-              const pathToCheck = wslPath.trim();
-              
-              // Check if this file exists
-              try {
-                await exec(`test -f "${pathToCheck}"`);
-                console.log(`Found Windows Ollama at: ${pathToCheck}`);
-                return pathToCheck;
-              } catch (error) {
-                // File doesn't exist
-                console.log(`Path doesn't exist: ${pathToCheck}`);
+              // Simple check if the file exists using ls
+              const { stdout } = await exec(`ls -la "${path}" 2>/dev/null || echo ""`);
+              if (stdout && !stdout.includes("No such file")) {
+                console.log(`Found Windows Ollama at WSL path: ${path}`);
+                return path;
               }
             } catch (error) {
-              console.error("Error converting Windows path for WSL:", error);
+              // Ignore errors, just try next path
+            }
+          }
+          
+          // 2. If still not found, try using cmd.exe to find the Windows location
+          try {
+            // This command will execute in the Windows command prompt to find Ollama
+            const { stdout: cmdOutput } = await exec('cmd.exe /c "where ollama.exe 2> nul"');
+            if (cmdOutput.trim()) {
+              const windowsPath = cmdOutput.trim();
+              console.log("Found Windows Ollama path via cmd.exe:", windowsPath);
+              
+              // Convert Windows path to WSL path
+              try {
+                const { stdout: wslPath } = await exec(`wslpath "${windowsPath}"`);
+                if (wslPath.trim()) {
+                  console.log("Converted to WSL path:", wslPath.trim());
+                  return wslPath.trim();
+                }
+              } catch (error) {
+                console.error("Error converting Windows path with wslpath:", error);
+              }
             }
           } catch (error) {
-            console.error("Error checking common path in WSL:", error);
+            console.log("Could not find Ollama via cmd.exe in WSL");
           }
+        } catch (error) {
+          console.error("Error detecting Windows Ollama from WSL:", error);
         }
       }
+      
+      console.log("Falling back to using 'ollama' command in WSL");
+      return 'ollama';
     } catch (error) {
       console.error("Error detecting Ollama in WSL:", error);
+      return 'ollama';
     }
-    
-    // Fallback to just using 'ollama' command for WSL
-    return 'ollama';
   } else if (process.platform === 'win32') {
     // On Windows, check common installation locations
     try {
       const { stdout: whereOutput } = await exec('where ollama');
       if (whereOutput.trim()) {
+        console.log("Found Ollama in Windows PATH:", whereOutput.trim());
         return whereOutput.trim();
       }
     } catch (error) {
       // Not found in PATH, try common locations
+      console.log("Ollama not found in Windows PATH, checking common locations");
       const commonPaths = [
         '%LOCALAPPDATA%\\Programs\\Ollama\\ollama.exe',
         '%ProgramFiles%\\Ollama\\ollama.exe'
       ];
-      return commonPaths[0]; // Use first common path as fallback
+      
+      // Expand environment variables
+      const expandedPath = commonPaths[0].replace(/%([^%]+)%/g, (_, varName) => 
+        process.env[varName] || '');
+      
+      console.log("Using Windows path:", expandedPath);
+      return expandedPath;
     }
   }
   
@@ -348,30 +409,58 @@ export function addTerminalDebugInfo(terminal: vscode.Terminal, isWSL: boolean):
  */
 export function installOllamaInWSL(terminal: vscode.Terminal): void {
   terminal.sendText('echo "Installing Ollama in WSL (Windows Subsystem for Linux)..."');
-  terminal.sendText('echo "You have two options for using Ollama with WSL:"');
   terminal.sendText('echo');
-  terminal.sendText('echo "Option 1: Install Ollama natively in WSL (recommended)"');
-  terminal.sendText('echo "  This will run the Linux installation script:"');
+  terminal.sendText('echo "WSL detected! There are two ways to use Ollama with WSL:"');
+  terminal.sendText('echo');
+  terminal.sendText('echo "Option 1: Install Ollama natively in WSL (RECOMMENDED)"');
+  terminal.sendText('echo "  This will install Ollama directly in your Linux environment:"');
   terminal.sendText('echo "  curl -fsSL https://ollama.com/install.sh | sh"');
   terminal.sendText('echo');
-  terminal.sendText('echo "Option 2: Access Windows Ollama from WSL"');
-  terminal.sendText('echo "  1. Open Windows Explorer (you can type: explorer.exe .)"');
-  terminal.sendText('echo "  2. Download Ollama from: https://ollama.com/download"');
-  terminal.sendText('echo "  3. Install in Windows"');
-  terminal.sendText('echo "  4. Access from WSL using: /mnt/c/Users/YOUR_USERNAME/AppData/Local/Programs/Ollama/ollama.exe"');
+  terminal.sendText('echo "Option 2: Use existing Windows Ollama installation from WSL"');
+  terminal.sendText('echo "  If Ollama is already installed in Windows, you can access it with:"');
+  
+  // Get username for more accurate path suggestion
+  terminal.sendText('WIN_USERNAME=$(cmd.exe /c "echo %USERNAME%" 2>/dev/null | tr -d "\\r")');
+  terminal.sendText('echo "  - Your Windows username appears to be: $WIN_USERNAME"');
+  terminal.sendText('echo "  - The Ollama path should be something like:"');
+  terminal.sendText('echo "    /mnt/c/Users/$WIN_USERNAME/AppData/Local/Programs/Ollama/ollama.exe"');
   terminal.sendText('echo');
-  terminal.sendText('echo "Would you like to install Ollama in WSL now? (y/n)"');
+  
+  // Provide more useful information
+  terminal.sendText('echo "Would you like to install Ollama natively in WSL now? (y/n)"');
   terminal.sendText('read REPLY');
   terminal.sendText('if [[ $REPLY =~ ^[Yy]$ ]]; then');
   terminal.sendText('  echo "Installing Ollama in WSL..."');
   terminal.sendText('  curl -fsSL https://ollama.com/install.sh | sh');
-  terminal.sendText('  echo "Installation completed. You might need to restart VS Code."');
+  terminal.sendText('  echo');
+  terminal.sendText('  echo "Installation completed."');
+  terminal.sendText('  echo "You might need to start the Ollama service manually with:"');
+  terminal.sendText('  echo "  sudo systemctl start ollama.service"');
+  terminal.sendText('  echo "Or restart your WSL session with: wsl --shutdown"');
   terminal.sendText('else');
-  terminal.sendText('  echo "Installation cancelled. Please install Ollama manually."');
-  terminal.sendText('  echo "You can download it from: https://ollama.com/download"');
-  terminal.sendText('  # Open Windows browser to download page');
-  terminal.sendText('  explorer.exe "https://ollama.com/download" || echo "Could not open browser"');
+  terminal.sendText('  echo "Installation cancelled."');
+  terminal.sendText('  echo');
+  terminal.sendText('  # Try to find existing Windows Ollama installation');
+  terminal.sendText('  echo "Checking for existing Windows Ollama installation..."');
+  terminal.sendText('  OLLAMA_PATH=$(ls -la /mnt/c/Users/*/AppData/Local/Programs/Ollama/ollama.exe 2>/dev/null | head -n 1 || echo "Not found")');
+  terminal.sendText('  if [[ "$OLLAMA_PATH" != "Not found" ]]; then');
+  terminal.sendText('    echo "Found Windows Ollama at:"');
+  terminal.sendText('    echo "  $OLLAMA_PATH"');
+  terminal.sendText('    echo');
+  terminal.sendText('    echo "To use this from WSL, you need to set up an alias."');
+  terminal.sendText('    echo "Run these commands to add an alias to your shell config:"');
+  terminal.sendText('    echo');
+  terminal.sendText('    echo "  echo \'alias ollama=\"$OLLAMA_PATH\"\' >> ~/.bashrc"');
+  terminal.sendText('    echo "  source ~/.bashrc"');
+  terminal.sendText('  else');
+  terminal.sendText('    echo "No Windows Ollama installation found."');
+  terminal.sendText('    echo "You can download it from: https://ollama.com/download"');
+  terminal.sendText('    cmd.exe /c start https://ollama.com/download');
+  terminal.sendText('  fi');
   terminal.sendText('fi');
+  terminal.sendText('echo');
+  terminal.sendText('echo "Press Enter to continue..."');
+  terminal.sendText('read');
 }
 
 /**

@@ -63,21 +63,37 @@ The LoCopilot extension can also help install Ollama for you with the appropriat
 
 **Windows Subsystem for Linux (WSL):**
 
-If you're using WSL, you have two options:
+When using LoCopilot in WSL, you have two options:
 
-1. Install Ollama for Linux in your WSL environment:
-```bash
-curl -fsSL https://ollama.com/install.sh | sh
-```
-
-2. Access your Windows Ollama installation from WSL:
-   - First install Ollama for Windows using the Windows installer
-   - In WSL, you can access it using the Windows path converted to WSL format:
+1. **Install Ollama natively in WSL (Recommended)**:
    ```bash
-   /mnt/c/Users/YOUR_USERNAME/AppData/Local/Programs/Ollama/ollama.exe
+   # Install Ollama in your WSL environment
+   curl -fsSL https://ollama.com/install.sh | sh
+   
+   # If you encounter permission issues, try:
+   curl -fsSL https://ollama.com/install.sh | sudo sh
+   
+   # Start the Ollama service
+   sudo systemctl start ollama
    ```
 
-LoCopilot will attempt to automatically detect and use the correct Ollama installation regardless of which option you choose.
+2. **Access your Windows Ollama installation from WSL**:
+   - First install Ollama for Windows using the Windows installer
+   - In WSL, access it via the Windows path converted to WSL format:
+   ```bash
+   # Make it executable if needed
+   chmod +x /mnt/c/Users/YOUR_USERNAME/AppData/Local/Programs/Ollama/ollama.exe
+   
+   # Run commands directly
+   /mnt/c/Users/YOUR_USERNAME/AppData/Local/Programs/Ollama/ollama.exe pull gemma3:4b
+   ```
+
+**Troubleshooting WSL**:
+- If you see `zsh: command not found` errors, you're likely seeing Windows commands being sent to a Linux shell
+- In this case, close VS Code, restart, and use the WSL-specific installation option
+- You can also open Windows Explorer from WSL with `explorer.exe .` and download Ollama manually
+
+LoCopilot will detect if you're running in WSL and provide appropriate installation instructions.
 
 ## 💡 Next Steps
 After installing Ollama, be sure to install at least 1 model before running the extension.

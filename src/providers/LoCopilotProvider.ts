@@ -1099,10 +1099,38 @@ When the user asks a question, focus on providing direct, practical answers that
     try {
       const terminal = vscode.window.createTerminal("Ollama Installation");
       
+      // Check if we're in WSL
+      const isWSL = await this._isWSL();
+      
       // Determine platform and use appropriate install command
       const platform = process.platform;
       
-      if (platform === 'darwin') {
+      if (isWSL) {
+        // Handle WSL specifically - use Linux installation method in WSL
+        terminal.sendText('echo "Installing Ollama in WSL (Windows Subsystem for Linux)..."');
+        terminal.sendText('echo "You have two options for using Ollama with WSL:"');
+        terminal.sendText('echo');
+        terminal.sendText('echo "Option 1: Install Ollama natively in WSL (recommended)"');
+        terminal.sendText('echo "  This will run the Linux installation script:"');
+        terminal.sendText('echo "  curl -fsSL https://ollama.com/install.sh | sh"');
+        terminal.sendText('echo');
+        terminal.sendText('echo "Option 2: Access Windows Ollama from WSL"');
+        terminal.sendText('echo "  1. Open Windows Explorer (you can type: explorer.exe .)"');
+        terminal.sendText('echo "  2. Download Ollama from: https://ollama.com/download"');
+        terminal.sendText('echo "  3. Install in Windows"');
+        terminal.sendText('echo "  4. Access from WSL using: /mnt/c/Users/YOUR_USERNAME/AppData/Local/Programs/Ollama/ollama.exe"');
+        terminal.sendText('echo');
+        terminal.sendText('echo "Would you like to install Ollama in WSL now? (y/n)"');
+        terminal.sendText('read REPLY');
+        terminal.sendText('if [[ $REPLY =~ ^[Yy]$ ]]; then');
+        terminal.sendText('  echo "Installing Ollama in WSL..."');
+        terminal.sendText('  curl -fsSL https://ollama.com/install.sh | sh');
+        terminal.sendText('  echo "Installation completed. You might need to restart VS Code."');
+        terminal.sendText('else');
+        terminal.sendText('  echo "Installation cancelled. Please install Ollama manually."');
+        terminal.sendText('  echo "You can download it from: https://ollama.com/download"');
+        terminal.sendText('fi');
+      } else if (platform === 'darwin') {
         // macOS installation command
         terminal.sendText('brew install ollama');
       } else if (platform === 'linux') {
@@ -1161,7 +1189,7 @@ When the user asks a question, focus on providing direct, practical answers that
       terminal.show();
       
       // Show a message indicating installation has started
-      if (platform === 'win32') {
+      if (platform === 'win32' && !isWSL) {
         vscode.window.showInformationMessage('Ollama installer downloaded. Please follow the instructions in the terminal to complete installation.');
       } else {
         vscode.window.showInformationMessage('Ollama installation has started in the terminal');

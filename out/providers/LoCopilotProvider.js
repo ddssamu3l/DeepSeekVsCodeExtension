@@ -306,15 +306,50 @@ When the user asks a question, focus on providing direct, practical answers that
                 else if (message.command === "installModel") {
                     // Show terminal to install a model
                     const terminal = vscode.window.createTerminal("Ollama Model Installation");
-                    // Get the appropriate Ollama path for the current platform
-                    (0, platformUtils_1.getOllamaPath)().then(ollamaPath => {
-                        // Quote path if needed (Windows, WSL, or contains spaces)
-                        const needsQuotes = process.platform === 'win32' || ollamaPath.includes(' ');
-                        const quotedPath = needsQuotes ? `"${ollamaPath}"` : ollamaPath;
-                        // Use the detected path
-                        terminal.sendText(`${quotedPath} pull ${message.modelName}`);
+                    // Check if we're in WSL
+                    const checkWSL = async () => {
+                        const wslEnvironment = await (0, platformUtils_1.isWSL)() || (0, platformUtils_1.detectWSLFromEnvironment)();
+                        // Get the model name to install
+                        const modelName = message.modelName;
+                        if (wslEnvironment) {
+                            console.log("Installing model in WSL environment - using special handling");
+                            // In WSL, we need special handling for Windows executables
+                            terminal.sendText('echo "Installing model in WSL environment..."');
+                            // First try to find Windows Ollama using cmd.exe
+                            terminal.sendText('echo "Detecting Windows Ollama installation..."');
+                            terminal.sendText('WIN_USERNAME=$(cmd.exe /c "echo %USERNAME%" 2>/dev/null | tr -d "\\r")');
+                            terminal.sendText('OLLAMA_WIN_PATH=$(cmd.exe /c "where ollama.exe" 2>/dev/null | tr -d "\\r" || echo "")');
+                            // Try typical installation paths if where command fails
+                            terminal.sendText('if [ -z "$OLLAMA_WIN_PATH" ]; then');
+                            terminal.sendText('  OLLAMA_WIN_PATH="C:\\Users\\$WIN_USERNAME\\AppData\\Local\\Programs\\Ollama\\ollama.exe"');
+                            terminal.sendText('  echo "Windows path (guessed): $OLLAMA_WIN_PATH"');
+                            terminal.sendText('else');
+                            terminal.sendText('  echo "Windows path (detected): $OLLAMA_WIN_PATH"');
+                            terminal.sendText('fi');
+                            // Different approach: use cmd.exe to run the command in Windows
+                            terminal.sendText('echo "Installing model using Windows cmd.exe..."');
+                            terminal.sendText('cmd.exe /c "$OLLAMA_WIN_PATH pull ' + modelName + '"');
+                            // Provide alternative fallback in case that doesn't work
+                            terminal.sendText('echo');
+                            terminal.sendText('echo "If installation failed, try this alternative command:"');
+                            terminal.sendText('echo "cmd.exe /c \"C:\\Users\\%USERNAME%\\AppData\\Local\\Programs\\Ollama\\ollama.exe pull ' + modelName + '\""');
+                            terminal.sendText('echo');
+                            terminal.sendText('echo "Or install Ollama natively in WSL with: curl -fsSL https://ollama.com/install.sh | sh"');
+                        }
+                        else {
+                            // Non-WSL environment, use standard approach
+                            (0, platformUtils_1.getOllamaPath)().then(ollamaPath => {
+                                // Quote path if needed (Windows or contains spaces)
+                                const needsQuotes = process.platform === 'win32' || ollamaPath.includes(' ');
+                                const quotedPath = needsQuotes ? `"${ollamaPath}"` : ollamaPath;
+                                // Use the detected path
+                                terminal.sendText(`${quotedPath} pull ${modelName}`);
+                            });
+                        }
                         terminal.show();
-                    });
+                    };
+                    // Run the WSL check and handle appropriately
+                    checkWSL();
                 }
             });
         }

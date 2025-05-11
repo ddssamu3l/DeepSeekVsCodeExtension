@@ -40,6 +40,8 @@ exports.activate = activate;
 exports.deactivate = deactivate;
 const vscode = __importStar(require("vscode"));
 const LoCopilotProvider_1 = __importDefault(require("./providers/LoCopilotProvider"));
+// Maintain a reference to the provider for disposal
+let locopilotProvider;
 /**
  * Main entry point for the LoCopilot VS Code extension.
  * This function is called when the extension is activated.
@@ -52,7 +54,7 @@ function activate(context) {
     console.log("LoCopilot Extension: Activation started");
     try {
         // Create the WebviewViewProvider
-        const provider = new LoCopilotProvider_1.default(context.extensionUri);
+        locopilotProvider = new LoCopilotProvider_1.default(context.extensionUri);
         // Register commands
         const viewType = "locopilot-ext.view";
         /**
@@ -68,8 +70,28 @@ function activate(context) {
             }
         });
         context.subscriptions.push(openViewCommand);
+        /**
+         * Command that refreshes the workspace map used for context.
+         * This is registered as 'locopilot-ext.refreshWorkspaceMap' and can be triggered from the command palette.
+         */
+        const refreshMapCommand = vscode.commands.registerCommand('locopilot-ext.refreshWorkspaceMap', async () => {
+            try {
+                if (locopilotProvider) {
+                    await locopilotProvider.refreshWorkspaceMap();
+                    vscode.window.showInformationMessage('LoCopilot: Workspace map refreshed successfully.');
+                }
+                else {
+                    vscode.window.showErrorMessage('LoCopilot provider not initialized.');
+                }
+            }
+            catch (err) {
+                console.error("Error refreshing workspace map:", err);
+                vscode.window.showErrorMessage(`Failed to refresh workspace map: ${err instanceof Error ? err.message : String(err)}`);
+            }
+        });
+        context.subscriptions.push(refreshMapCommand);
         // Register the provider
-        const disposable = vscode.window.registerWebviewViewProvider(viewType, provider, {
+        const disposable = vscode.window.registerWebviewViewProvider(viewType, locopilotProvider, {
             webviewOptions: {
                 retainContextWhenHidden: true
             }
@@ -85,9 +107,15 @@ function activate(context) {
 }
 /**
  * Cleanup function called when the extension is deactivated.
- * Currently doesn't need to perform any cleanup actions.
+ * Properly disposes of resources, particularly the file watcher.
  *
  * @function deactivate
  */
-function deactivate() { }
+function deactivate() {
+    if (locopilotProvider) {
+        console.log("LoCopilot Extension: Disposing provider resources");
+        locopilotProvider.dispose();
+        locopilotProvider = undefined;
+    }
+}
 //# sourceMappingURL=extension.js.map

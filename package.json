@@ -57,6 +57,10 @@
       {
         "command": "locopilot-ext.openView",
         "title": "Open LoCopilot Chat View"
+      },
+      {
+        "command": "locopilot-ext.refreshWorkspaceMap",
+        "title": "LoCopilot: Refresh Workspace Map"
       }
     ],
     "viewsContainers": {
@@ -64,7 +68,7 @@
         {
           "id": "locopilot-ext",
           "title": "LoCopilot Extension",
-          "icon": "media/rainsong.svg"
+          "icon": "media/bot.svg"
         }
       ]
     },
